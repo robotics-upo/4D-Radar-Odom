@@ -17,7 +17,7 @@
 4. Finalmente, sube el archivo a GitHub:
 
     ```bash
-    git push origin main
+    git push origin main dwdw
     ```
 
 Esto subirá el archivo `README.md` a tu repositorio en GitHub. Luego, podrás verlo directamente en la página principal de tu repositorio.
