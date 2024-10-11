@@ -1,0 +1,37 @@
+radar_pcl_processor:
+  ros__parameters:
+    imu_topic: "/vectornav/imu"
+    radar_topic: "/radar_enhanced_pcl"
+    holonomic_vehicle: true
+    intensity_channel: 2
+    doppler_channel: 0
+    enable_dynamic_object_removal: true
+    distance_near_thresh: 0.1
+    distance_far_thresh: 80.0
+    z_low_thresh: -40.0
+    z_high_thresh: 100.0
+    min_dist: 0.5
+    max_dist: 400.0
+    min_db: 5.0
+    elevation_thresh_deg: 50.00
+    azimuth_thresh_deg: 56.5
+    doppler_velocity_correction_factor: 1.0
+    thresh_zero_velocity: 0.05
+    allowed_outlier_percentage: 0.30
+    sigma_zero_velocity_x: 1.0e-03
+    sigma_zero_velocity_y: 3.2e-03
+    sigma_zero_velocity_z: 1.0e-02
+    sigma_offset_radar_x: 0.0
+    sigma_offset_radar_y: 0.0
+    sigma_offset_radar_z: 0.0
+    max_sigma_x: 0.2
+    max_sigma_y: 0.2
+    max_sigma_z: 0.2
+    max_r_cond: 0.2
+    use_cholesky_instead_of_bdcsvd: true
+    use_ransac: true
+    outlier_prob: 0.05
+    success_prob: 0.995
+    N_ransac_points: 5.0
+    inlier_thresh: 0.5
+
