@@ -11,7 +11,7 @@
 3. Haz un commit con un mensaje explicativo:
 
     ```bash
-    git commit -m "Añadir README al proyecto"
+    git commit -m "Añadir README al proyecto" 
     ```
 
 4. Finalmente, sube el archivo a GitHub:
