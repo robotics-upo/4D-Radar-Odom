@@ -50,3 +50,42 @@ Below is a flow diagram illustrating the system structure:
   <img src="figures/WF.png" alt="System Structure" />
 </p>
 
+## 3. Installation and Tuning Guide
+
+### Installation
+
+Follow these steps to install the `radar_odom` package from the `Radar_Odom` repository:
+
+1. **Clone the repository** (excluding `README.md` and the `figures` folder):
+
+    ```bash
+    mkdir radar_odom
+    cd pose_slam
+    git clone https://github.com/LuciaCoto/Radar_Odom.git .
+    ```
+
+    
+
+2. **Build the package**:
+
+    After cloning the repository and ensuring all the dependencies mentioned in the previous section are installed, build the package:
+
+    ```bash
+    colcon build
+    ```
+
+3. **Source your workspace**:
+
+    After building, source your workspace to ensure the package is recognized:
+
+    ```bash
+    source install/setup.bash
+    ```
+
+---
+
+### Tuning
+
+The following section provides guidance on tuning the parameters for the radar-based odometry system. 
+
+*(Continue here with your specific tuning instructions)*
