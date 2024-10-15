@@ -1,32 +1,40 @@
-# Radar based odometry for Ground Vehicles
+<a id="readme-top"></a>
+<!-- PROJECT LOGO -->
+<br />
+<div align="center">
+
+<h3 align="center">Radar Based Odometry for Ground Vehicles</h3>
+  <p align="center">
+    ROS2 Humble package for 3D odometry estimation using 4D radar and IMU data.
+    <br />
+  </p>
+</div>
+<!-- TABLE OF CONTENTS -->
+<details>
+  <summary>Table of Contents</summary>
+  <ol>
+    <li>
+      <a href="#about-the-project">About The Project</a>
+    </li>
+    <li>
+      <a href="#getting-started">Getting Started</a>
+      <ul>
+        <li><a href="#system-requirements">System Requirements</a></li>
+        <li><a href="#installation">Installation</a></li>
+      </ul>
+    </li>
+    <li><a href="#tuning">Tuning</a></li>
+  </ol>
+</details>
+
+<!-- ABOUT THE PROJECT -->
+## About The Project
 
 **Radar_Odom** is an open-source ROS2 Humble package designed to estimate the trajectory of a ground vehicle equipped with a 4D radar (x, y, z, Doppler) and an IMU. It is a 3D odometry system aimed at contributing to the development of odometry algorithms in adverse situations where commonly used sensors such as LiDAR, cameras, etc., are not applicable, for instance, in environments with fog or rain in 3D scenarios.
-
-## 1. Dependencies
-
-### System Requirements:
-- **Ubuntu 22.04 (Jammy)**
-This package depends on several libraries and ROS2 packages. Below is a list of the required packages and libraries:
-
-### ROS2 Packages:
-- `ament_cmake`
-- `rclcpp`
-- `geometry_msgs`
-- `nav_msgs`
-- `sensor_msgs`
-- `tf2_eigen`
-- `pcl_conversions`
-- `pcl_ros`
-- `tf2_ros`
-- `tf2_geometry_msgs`
-
-### External Libraries:
-- **Eigen3**
-- **OpenCV**
-- **Ceres**
-- **angles**
-- **PCL**
-## 2. System Structure
+<p align="center">
+  <img src="figures/WF.png" alt="System Structure" />
+</p>
+<p align="right">(<a href="#readme-top">back to top</a>)</p>
 
 The `Radar_Odom` package is structured around two main nodes that work together to estimate the vehicle's trajectory using radar and IMU data.
 
@@ -44,13 +52,38 @@ Once the radar and IMU data have been refined, this node handles:
 
 This process ensures the vehicle's trajectory is continuously updated and optimized. The nodes work together to provide accurate pose estimation even in challenging environments where traditional sensors may not perform well.
 
-Below is a flow diagram illustrating the system structure:
+<p align="right">(<a href="#readme-top">back to top</a>)</p>
 
-<p align="center">
-  <img src="figures/WF.png" alt="System Structure" />
-</p>
+<!-- GETTING STARTED -->
+## Getting Started
+This is an example of how you may give instructions on setting up your project locally.
 
-## 3. Installation and Tuning Guide
+### System Requirements
+- **Ubuntu 22.04 (Jammy)**
+- **ROS2 Humble**
+
+
+This package depends on several libraries and ROS2 packages. Below is a list of the required packages and libraries:
+-  ROS2 Packages:
+    - `ament_cmake`
+    - `rclcpp`
+    - `geometry_msgs`
+    - `nav_msgs`
+    - `sensor_msgs`
+    - `tf2_eigen`
+    - `pcl_conversions`
+    - `pcl_ros`
+    - `tf2_ros`
+    - `tf2_geometry_msgs`
+
+- External Libraries:
+    - **Eigen3**
+    - **OpenCV**
+    - **Ceres**
+    - **angles**
+    - **PCL**
+
+<p align="right">(<a href="#readme-top">back to top</a>)</p>
 
 ### Installation
 
@@ -63,8 +96,6 @@ Follow these steps to install the `radar_odom` package from the `Radar_Odom` rep
     cd pose_slam
     git clone https://github.com/LuciaCoto/Radar_Odom.git .
     ```
-
-    
 
 2. **Build the package**:
 
@@ -82,10 +113,14 @@ Follow these steps to install the `radar_odom` package from the `Radar_Odom` rep
     source install/setup.bash
     ```
 
+<p align="right">(<a href="#readme-top">back to top</a>)</p>
+
 ---
 
-### Tuning
+## Tuning 
 
 The following section provides guidance on tuning the parameters for the radar-based odometry system. 
 
 *(Continue here with your specific tuning instructions)*
+
+<p align="right">(<a href="#readme-top">back to top</a>)</p>
