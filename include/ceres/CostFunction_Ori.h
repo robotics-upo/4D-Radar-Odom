@@ -18,24 +18,17 @@ public:
                     const T* const pose_b_yaw_ptr,
                     T* residuals_ptr) const {
 
-        //
         Eigen::Quaternion<T> q_a = CreateQuaternion(pose_a_roll_ptr, pose_a_pitch_ptr, pose_a_yaw_ptr);
         Eigen::Quaternion<T> q_b = CreateQuaternion(pose_b_roll_ptr, pose_b_pitch_ptr, pose_b_yaw_ptr);
-
-       
         Eigen::Quaternion<T> q_a_normalized = q_a.normalized();
         Eigen::Quaternion<T> q_b_normalized = q_b.normalized();
-
-        // ICP constraint (convertir q_ab_icp_ a tipo T)
         Eigen::Quaternion<T> q_ab_icp_T = q_ab_icp_.template cast<T>();
 
-        // Error de rotación
         Eigen::Quaternion<T> q_ab_est_ = q_a_normalized.inverse() * q_b_normalized;
         Eigen::Quaternion<T> q_ab_est_normalized = q_ab_est_.normalized();
         Eigen::Quaternion<T> error_rot = q_ab_est_normalized * q_ab_icp_T.inverse();
         Eigen::Quaternion<T> error_rot_norm = error_rot.normalized();
 
-        // Calcular los residuos
         Eigen::Map<Eigen::Matrix<T, 4, 1>> residuals(residuals_ptr);
         residuals(0) = error_rot_norm.x() * T(w_) * T(1.0);
         residuals(1) = error_rot_norm.y() * T(w_) * T(1.0);
@@ -53,13 +46,12 @@ public:
 private:
 
 template <typename T>
-Eigen::Quaternion<T> CreateQuaternion(const T* const roll, const T* const pitch, const T* const yaw_ptr) const {
+Eigen::Quaternion<T> CreateQuaternion(const T* const roll, const T* const pitch, const T* const yaw) const {
    
     Eigen::AngleAxis<T> roll_angle(*roll, Eigen::Matrix<T, 3, 1>::UnitX());
     Eigen::AngleAxis<T> pitch_angle(*pitch, Eigen::Matrix<T, 3, 1>::UnitY());
-    Eigen::AngleAxis<T> yaw_angle(*yaw_ptr, Eigen::Matrix<T, 3, 1>::UnitZ());
-
-   
+    Eigen::AngleAxis<T> yaw_angle(*yaw, Eigen::Matrix<T, 3, 1>::UnitZ());
+    
     Eigen::Quaternion<T> q = yaw_angle * pitch_angle * roll_angle; 
 
     return q;

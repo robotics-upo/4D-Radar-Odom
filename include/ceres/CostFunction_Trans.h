@@ -5,7 +5,6 @@
 
 class CostFunction_Trans {
 public:
-    // Constructor con un vector de 3 pesos (puedes cambiarlo a Eigen::Vector4d si necesitas 4 pesos)
     CostFunction_Trans(const Eigen::Vector3d& t_ab, const double& w = 1.0)
         : t_ab_icp_(t_ab), w_(w) {}
 
@@ -21,20 +20,16 @@ public:
                     const T* const pose_a_yaw_ptr,
                     T* residuals_ptr) const {
 
-        // Pose A - Pose B
         Eigen::Quaternion<T> q_a = CreateQuaternion(pose_a_roll_ptr, pose_a_pitch_ptr, pose_a_yaw_ptr);
         Eigen::Quaternion<T> q_a_normalized = q_a.normalized();
 
         Eigen::Matrix<T, 3, 1> t_a(*pose_a_tx_ptr, *pose_a_ty_ptr, *pose_a_tz_ptr);
         Eigen::Matrix<T, 3, 1> t_b(*pose_b_tx_ptr, *pose_b_ty_ptr, *pose_b_tz_ptr);
-        // ICP constraint
         Eigen::Matrix<T, 3, 1> t_ab_icp_T = t_ab_icp_.template cast<T>();
 
-        // Translation Error
         Eigen::Matrix<T, 3, 1> t_ab_ = q_a_normalized.inverse() * (t_b - t_a);
         Eigen::Matrix<T, 3, 1> error_pos =  t_ab_-t_ab_icp_T ;
 
-       
         Eigen::Map<Eigen::Matrix<T, 3, 1>> residuals(residuals_ptr);
         residuals(0) = error_pos[0] * T(0.1) * T(w_);
         residuals(1) = error_pos[1] * T(0.1) * T(w_);
@@ -43,30 +38,25 @@ public:
         return true;
     }
 
-    // Ajustar la función estática para recibir un vector de pesos
     static ceres::CostFunction* Create(const Eigen::Vector3d& t_ab, const double& w = 1.0) {
         return new ceres::AutoDiffCostFunction<CostFunction_Trans, 3, 1,1,1,1,1,1,1,1,1>(
             new CostFunction_Trans(t_ab, w));
     }
 
 private:
-template <typename T>
- Eigen::Quaternion<T> CreateQuaternion(const T* const roll, const T* const pitch, const T* const yaw_ptr) const {
+    template <typename T>
+    Eigen::Quaternion<T> CreateQuaternion(const T* const roll, const T* const pitch, const T* const yaw) const {
 
+        Eigen::AngleAxis<T> roll_angle(*roll, Eigen::Matrix<T, 3, 1>::UnitX());
+        Eigen::AngleAxis<T> pitch_angle(*pitch, Eigen::Matrix<T, 3, 1>::UnitY());
+        Eigen::AngleAxis<T> yaw_angle(*yaw, Eigen::Matrix<T, 3, 1>::UnitZ());
 
-    Eigen::AngleAxis<T> roll_angle(*roll, Eigen::Matrix<T, 3, 1>::UnitX());
-    
-    Eigen::AngleAxis<T> pitch_angle(*pitch, Eigen::Matrix<T, 3, 1>::UnitY());
-    
-    Eigen::AngleAxis<T> yaw_angle(*yaw_ptr, Eigen::Matrix<T, 3, 1>::UnitZ());
+        Eigen::Quaternion<T> q = yaw_angle * pitch_angle * roll_angle;
 
-    // Aplicamos las rotaciones en el mismo orden que tf2 (roll -> pitch -> yaw)
-    Eigen::Quaternion<T> q = yaw_angle * pitch_angle * roll_angle;  // Yaw, Pitch, Roll (ZYX order)
-
-    return q;
-}
+        return q;
+    }
 
 
     const Eigen::Vector3d t_ab_icp_;
-    const double w_;  // Ahora es un vector de 3 pesos (puedes cambiarlo a Eigen::Vector4d si es necesario)
-};
+    const double w_;
+}
