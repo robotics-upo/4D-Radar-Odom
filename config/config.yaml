@@ -1,15 +1,18 @@
 radar_pcl_processor:
   ros__parameters:
-    imu_topic: "/vectornav/imu"
-    radar_topic: "/radar_enhanced_pcl"
-    holonomic_vehicle: true
-    intensity_channel: 2
+    imu_topic: "/vectornav/imu"        # IMU topic
+    radar_topic: "/radar_enhanced_pcl" # Radar topic
+    holonomic_vehicle: true            # Holonomic ground Vehicle (true/false)
+    #Channel number of intensity and doppler channel
+    intensity_channel: 2  
     doppler_channel: 0
-    enable_dynamic_object_removal: true
-    distance_near_thresh: 0.1
+    enable_dynamic_object_removal: true # Remove dynamic objects
+    #Distance filter thresholds
+    distance_near_thresh: 0.1           
     distance_far_thresh: 80.0
     z_low_thresh: -40.0
     z_high_thresh: 100.0
+    #Ego velocity estimator thresholds/params
     min_dist: 0.5
     max_dist: 400.0
     min_db: 5.0
@@ -28,8 +31,6 @@ radar_pcl_processor:
     max_sigma_y: 0.2
     max_sigma_z: 0.2
     max_r_cond: 0.2
-    use_cholesky_instead_of_bdcsvd: true
-    use_ransac: true
     outlier_prob: 0.05
     success_prob: 0.995
     N_ransac_points: 5.0
@@ -37,9 +38,11 @@ radar_pcl_processor:
     
 graph_slam:
   ros_parameters:
-    bias_rpy: [0.0, 0.0, 0.0]
+    bias_rpy: [0.0, 0.0, 0.0]   #IMU bias
+    #Keyframe Thresholds
     keyframe_delta_trans : 1.0
     keyframe_delta_angle: 0.3
+    #Optimization window size
     max_window_size : 5
 
 
