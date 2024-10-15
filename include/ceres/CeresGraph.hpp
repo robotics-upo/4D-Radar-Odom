@@ -87,7 +87,7 @@ class CeresGraph {
 
                
                 if (fitness_score < 3.5) {
-                    
+
                     Constraint constraint;
                     constraint.id = id_target;
                     constraint.q = rot.normalized();
@@ -204,7 +204,7 @@ class CeresGraph {
   
         ceres::Solver::Options options;
         options.max_num_iterations = 1000;
-        options.linear_solver_type = ceres::DENSE_QR;
+        options.linear_solver_type = ceres::SPARSE_NORMAL_CHOLESKY;
         options.trust_region_strategy_type = ceres::LEVENBERG_MARQUARDT;
         ceres::Solver::Summary summary; 
         ceres::Solve(options, &graph_, &summary);

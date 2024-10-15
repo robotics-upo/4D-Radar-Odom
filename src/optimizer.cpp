@@ -24,7 +24,7 @@ public:
     using PointT = pcl::PointXYZI;
 
     GraphSlam() : Node("graph_slam"), stop_processing_(false) {
-        // Subscription to ego velocity and IMU topics
+
         ego_vel_subscriber_ = this->create_subscription<geometry_msgs::msg::TwistWithCovarianceStamped>(
             "/Ego_Vel_Twist", 300, [this](const geometry_msgs::msg::TwistWithCovarianceStamped::SharedPtr msg) {
                 {
@@ -49,13 +49,9 @@ public:
                 }
             });
 
-        // Publisher for odometry
         odometry_publisher_ = this->create_publisher<nav_msgs::msg::Odometry>("/odometry", 10);
         point_cloud_publisher_ = this->create_publisher<sensor_msgs::msg::PointCloud2>("/keyframe_cloud", 10);
-
         InitializeParams();
-
-        // Start a separate thread for processing messages
         processing_thread_ = std::thread(&GraphSlam::processMessages, this);
     }
 
@@ -72,7 +68,6 @@ public:
 
 private:
 
-    // Transform IMU data
     sensor_msgs::msg::Imu::SharedPtr transformImuData(const sensor_msgs::msg::Imu::SharedPtr imu_msg) {
         auto imu_data = std::make_shared<sensor_msgs::msg::Imu>();
         imu_data->header.stamp = imu_msg->header.stamp;
@@ -82,7 +77,6 @@ private:
                                   imu_msg->orientation.x,
                                   imu_msg->orientation.y,
                                   imu_msg->orientation.z);
-        
         Eigen::Quaterniond q_r =
             Eigen::AngleAxisd(M_PI, Eigen::Vector3d::UnitZ()) * 
             Eigen::AngleAxisd(M_PI, Eigen::Vector3d::UnitY()) * 
@@ -106,8 +100,6 @@ private:
 
         return imu_data;
     }
-
-    // Process messages from the queues
 
     void processMessages() {
         while (!stop_processing_) {
@@ -158,7 +150,6 @@ private:
                (imu_time.sec == cloud_time.sec && imu_time.nanosec < cloud_time.nanosec);
     }
 
-    // Process odometry with the messages
     void processOdometry(
 
         const geometry_msgs::msg::TwistWithCovarianceStamped::SharedPtr& twist_msg,
@@ -187,12 +178,10 @@ private:
         yaw_integrated += yaw_vel;
         yaw_integrated_kf += yaw_integrated;
 
-        // Update estimated pose
         update_estimated_pose(twist_msg, dt_imu);
 
         if (decide(estimated_pose)) {
 
-            std::cerr << "**********************************NEW KEYFRAME*****************************************" << std::endl;
             keyframe_pose = estimated_pose;
             
             keyframe_index++;
@@ -207,12 +196,10 @@ private:
                 Eigen::Matrix4d odom_tf = prev_pose.inverse() * actual_pose;
                 Keyframes.back().add_Odom_tf(odom_tf);
             
-                // Optimizacion ----------------------------------------------------------------------------------------
                 CeresGraph graph(&Keyframes, max_window_size);
                 graph.update_constraints(Keyframes.size());
                 graph.create_graph(Keyframes.size()); 
 
-                // Publicar transformed_cloud
                 
                 graph.optimize_graph(Keyframes.size()); 
                 
@@ -234,11 +221,11 @@ private:
                     std::cerr<<"Exceeded Threshold"<<std::endl;
                 }
                 
-                // Publica los keyframes-----------------------------------------------------------------------------------
                 nav_msgs::msg::Odometry odometry_msg;
                 odometry_msg.header.frame_id = "map";
                 
                 if (Keyframes.size() > max_window_size) {
+                    KeyFrame published_keyframe = Keyframes[Keyframes.size() - max_window_size];
                     odometry_msg.header.stamp = Keyframes[Keyframes.size() - max_window_size].getTimestamp();
                     tf2::Transform odom_opt = matrixToTransform((Keyframes[Keyframes.size() - max_window_size].getPose_matrix4d()));
                     odometry_msg.pose.pose.position.x = odom_opt.getOrigin().getX();
@@ -247,13 +234,19 @@ private:
                     odometry_msg.pose.pose.orientation = tf2::toMsg(odom_opt.getRotation().normalize());
 
                     odometry_publisher_->publish(odometry_msg);
+
+                    sensor_msgs::msg::PointCloud2 keyframe_cloud;
+                    pcl::toROSMsg(*[Keyframes.size() - max_window_size].getPointCloud(), keyframe_cloud);
+                    keyframe_cloud.header.frame_id = "base_link";
+                    keyframe_cloud.header.stamp = imu_msg->header.stamp;
+
+                    point_cloud_publisher_->publish(keyframe_cloud);
+                }else{
+                    KeyFrame published_keyframe = Keyframes[0];
+
                 }
 
-                sensor_msgs::msg::PointCloud2 keyframe_cloud;
-                pcl::toROSMsg(*actual_cloud_, keyframe_cloud);
-                keyframe_cloud.header.frame_id = "base_link";
-                keyframe_cloud.header.stamp = imu_msg->header.stamp;
-                point_cloud_publisher_->publish(keyframe_cloud);
+
             }
         }
 
@@ -264,13 +257,11 @@ private:
 
     void update_estimated_pose(const geometry_msgs::msg::TwistWithCovarianceStamped::SharedPtr& twist_msg, double dt) {
        
-        // Translation Vector
         double translation_x = twist_msg->twist.twist.linear.x * dt;
         double translation_y = twist_msg->twist.twist.linear.y * dt;
         double translation_z = twist_msg->twist.twist.linear.z * dt;
         tf2::Vector3 translation(translation_x, translation_y, translation_z);
 
-        // Rotation between poses
         q_rot =q_prev.inverse()*q_imu;
         q_rot.normalize();
         q_prev = q_imu;
@@ -279,19 +270,15 @@ private:
         double roll, pitch, yaw;
         m.getRPY(roll, pitch, yaw);
         
-        // Create a new quaternion with the current roll and pitch and the new desired yaw
         tf2::Quaternion q_yaw;
         q_yaw.setRPY(roll, pitch, yaw_integrated);
         q_yaw.normalize();
 
-        // Transform matrix T12
         tf2::Transform transform;
         transform.setRotation(q_yaw);
         transform.setOrigin(translation);
-
         estimated_pose = estimated_pose*transform;
-        
-        
+
         tf2::Quaternion q_current;
         tf2::Matrix3x3(estimated_pose.getRotation()).getRotation(q_current);
         q_current.normalize();
@@ -308,7 +295,6 @@ private:
    
         estimated_pose.setRotation(q_combined);
 
-
         if (!validatePose(estimated_pose)) {
             std::cerr << "Error: estimated pose contains NaN values, skipping update." << std::endl;
         }
@@ -320,18 +306,25 @@ private:
     }
 
     void InitializeParams() {
+
+        std::vector<double> bias_values;
+        this->get_parameter("bias_rpy", bias_values);
+        Eigen::Vector3d bias(bias_values[0], bias_values[1], bias_values[2]);
+        this->get_parameter("keyframe_delta_trans", keyframe_delta_trans);
+        this->get_parameter("keyframe_delta_angle", keyframe_delta_angle);
+        this->get_parameter("max_window_size", max_window_size);
+        
         dt_imu = 0.0; 
         initialization = true;
         is_first = true;
         estimated_pose = tf2::Transform::getIdentity();
         yaw_integrated = 0.0;
         keyframe_index = 0.0;
-        keyframe_delta_trans = 1.0; 
-        keyframe_delta_angle = 0.3;
-        max_window_size = 5;
+        
     }
 
     bool decide(tf2::Transform Pose) {
+        
         if (is_first) {
             is_first = false;
             return true;
@@ -340,17 +333,16 @@ private:
         tf2::Transform delta = keyframe_pose.inverse() * Pose;
         tf2::Vector3 translation = delta.getOrigin();
         tf2::Quaternion rotation = delta.getRotation();
-
         double dx = translation.length();
 
         double roll, pitch, yaw;
         tf2::Matrix3x3(rotation).getRPY(roll, pitch, yaw);
-
         double da = yaw;
 
         return (dx >= keyframe_delta_trans || std::abs(da) >= keyframe_delta_angle);
     }
     void publishRemainingKeyframes() {
+
     size_t start_idx = std::max(0, static_cast<int>(Keyframes.size()) - static_cast<int>(max_window_size));
 
     for (size_t i = start_idx; i < Keyframes.size(); ++i) {
@@ -365,7 +357,6 @@ private:
         odometry_msg.pose.pose.position.z = odom_opt.getOrigin().getZ();
         odometry_msg.pose.pose.orientation = tf2::toMsg(odom_opt.getRotation().normalize());
 
-        // Publicar la odometría
         odometry_publisher_->publish(odometry_msg);
     }
 }
@@ -391,17 +382,6 @@ private:
     tf2::Quaternion q_prev;
     tf2::Quaternion q_rot;
     tf2::Quaternion q_bias;
-    /*
-    Eigen::Vector3d bias{0.0, -0.00524, 0.0};  //Cp
-    Eigen::Vector3d bias{0.02618, 0.01134, 0.0};  //nyl
-    Eigen::Vector3d bias{-0.01571, 0.03491, 0.0};  //loop1
-    Eigen::Vector3d bias{0.03054, 0.05934, 0.0};  //loop2
-    */
-
-   // Eigen::Vector3d bias{-0.0005, -0.0046, 0.0};  //Cp
-   // Eigen::Vector3d bias{0.0251, 0.0123, 0.0};  //nyl
-    //Eigen::Vector3d bias{0.0244, 0.0664, 0.0};  //loop1
-    Eigen::Vector3d bias{0.0003, 0.0739, 0.0};  //loop2
     std::vector<KeyFrame> Keyframes;
 
     bool initialization;

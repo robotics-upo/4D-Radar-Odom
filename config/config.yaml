@@ -34,4 +34,12 @@ radar_pcl_processor:
     success_prob: 0.995
     N_ransac_points: 5.0
     inlier_thresh: 0.5
+    
+graph_slam:
+  ros_parameters:
+    bias_rpy: [0.0, 0.0, 0.0]
+    keyframe_delta_trans : 1.0
+    keyframe_delta_angle: 0.3
+    max_window_size : 5
+
 
