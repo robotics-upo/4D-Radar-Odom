@@ -1,13 +1,10 @@
 <a id="readme-top"></a>
 <!-- PROJECT LOGO -->
 <br />
-<div align="center">
+<div>
 
-<h3 align="center">Radar Based Odometry for Ground Vehicles</h3>
-  <p align="center">
-    ROS2 Humble package for 3D odometry estimation using 4D radar and IMU data.
-    <br />
-  </p>
+<h1>Radar Based Odometry for Ground Vehicles</h1>
+
 </div>
 <!-- TABLE OF CONTENTS -->
 <details>
@@ -62,26 +59,21 @@ This is an example of how you may give instructions on setting up your project l
 - **Ubuntu 22.04 (Jammy)**
 - **ROS2 Humble**
 
+ROS2 Packages:
 
-This package depends on several libraries and ROS2 packages. Below is a list of the required packages and libraries:
--  ROS2 Packages:
-    - `ament_cmake`
-    - `rclcpp`
-    - `geometry_msgs`
-    - `nav_msgs`
-    - `sensor_msgs`
-    - `tf2_eigen`
-    - `pcl_conversions`
-    - `pcl_ros`
-    - `tf2_ros`
-    - `tf2_geometry_msgs`
+    tf2_eigen
+    pcl_conversions
+    pcl_ros
+    tf2_ros
+    tf2_geometry_msgs
 
-- External Libraries:
-    - **Eigen3**
-    - **OpenCV**
-    - **Ceres**
-    - **angles**
-    - **PCL**
+External Libraries:
+
+    Eigen3
+    Ceres
+    angles
+    PCL
+    OpenCV (optional, used for matrix operations in the transformation)
 
 <p align="right">(<a href="#readme-top">back to top</a>)</p>
 
