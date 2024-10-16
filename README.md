@@ -44,7 +44,7 @@ This node processes data from both the radar and the IMU. It performs several ta
 
 ### 2. Optimization Node
 Once the radar and IMU data have been refined, this node handles:
-- **Pose Estimation**: Using the ego-velocity and filtered data, the node estimates the vehicle's pose.
+- **Pose Estimation**: Using the ego-velocity and IMU data, the node estimates the vehicle's pose.
 - **KeyFrame Management**: Manages key frames and ensures optimization over a sliding window.
 - **Graph Construction & Optimization**: Builds and optimizes a graph of the vehicle's poses using scan matching (GICP) and IMU constraints.
 
@@ -89,9 +89,9 @@ This command will install the necessary external dependencies, and if any of the
 
 ### Installation
 
-Follow these steps to install the `radar_odom` package from the `Radar_Odom` repository:
+Follow these steps to install the `radar_odom` package:
 
-1. **Clone the repository** (excluding `README.md` and the `figures` folder):
+1. **Clone the repository**
 
     ```bash
     mkdir radar_odom
