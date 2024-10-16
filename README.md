@@ -51,30 +51,40 @@ Once the radar and IMU data have been refined, this node handles:
 This process ensures the vehicle's trajectory is continuously updated and optimized. The nodes work together to provide accurate pose estimation even in challenging environments where traditional sensors may not perform well.
 
 <p align="right">(<a href="#readme-top">back to top</a>)</p>
-
-<!-- GETTING STARTED -->
 ## Getting Started
 
 ### System Requirements
 - **Ubuntu 22.04 (Jammy)**
 - **ROS2 Humble**
 
-### ROS2 Packages:
+### Step 1: Install ROS2 Humble
 
-    tf2_eigen
-    pcl_conversions
-    pcl_ros
-    tf2_ros
-    tf2_geometry_msgs
+Before you begin, make sure you have **ROS2 Humble** installed on your system. If you haven't installed it yet, you can follow the official ROS2 [installation guide](https://docs.ros.org/en/humble/Installation.html) for your platform. This guide will walk you through the steps necessary to set up the core ROS2 environment.
 
-### External Libraries:
+### Step 2: Install Required ROS2 Packages
 
-    Eigen3
-    Ceres
-    angles
-    PCL
-    OpenCV
+In addition to the basic ROS2 installation, the following packages are needed for this project. These are typically included in a standard ROS2 setup, but it's always good to check if they are present on your system:
 
+- `tf2_eigen`
+- `pcl_conversions`
+- `pcl_ros`
+- `tf2_ros`
+- `tf2_geometry_msgs`
+
+You can install these packages using the following command if they are not already available on your system:
+```bash
+sudo apt install ros-humble-tf2-eigen ros-humble-pcl-conversions ros-humble-pcl-ros ros-humble-tf2-ros ros-humble-tf2-geometry-msgs
+```
+### Step 3: Install External Libraries
+
+Besides the ROS2 packages, this project depends on several external libraries that you may need to install manually. These libraries include **Eigen3** for linear algebra operations, **Ceres Solver** for optimization, **PCL (Point Cloud Library)** for point cloud processing, and **OpenCV** for image and matrix operations.
+
+To install these external libraries, simply copy and run the following command in your terminal:
+
+```bash
+sudo apt install libeigen3-dev libceres-dev libpcl-dev libopencv-dev || true
+```
+This command will install the necessary external dependencies, and if any of them are already installed, the installation process will simply ignore them and continue without issues.
 <p align="right">(<a href="#readme-top">back to top</a>)</p>
 
 ### Installation
