@@ -33,8 +33,8 @@ add_executable(optimizer src/optimizer.cpp)
 add_executable(record src/record.cpp)
 add_executable(baselink_tf src/baselink_tf.cpp)
 
-ament_target_dependencies(radar_pcl_processor rclcpp sensor_msgs geometry_msgs nav_msgs pcl_conversions pcl_ros Eigen3 angles tf2_eigen OpenCV)
-ament_target_dependencies(optimizer rclcpp nav_msgs sensor_msgs geometry_msgs Eigen3 tf2_ros tf2_geometry_msgs Ceres pcl_ros pcl_conversions )  
+ament_target_dependencies(radar_pcl_processor rclcpp sensor_msgs geometry_msgs pcl_conversions pcl_ros Eigen3 OpenCV)
+ament_target_dependencies(optimizer rclcpp nav_msgs sensor_msgs geometry_msgs Eigen3 tf2_ros tf2_geometry_msgs Ceres pcl_ros pcl_conversions)  
 ament_target_dependencies(record rclcpp nav_msgs geometry_msgs)
 ament_target_dependencies(baselink_tf rclcpp nav_msgs tf2_ros)
 

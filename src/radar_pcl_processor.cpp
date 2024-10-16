@@ -2,14 +2,10 @@
 #include <sensor_msgs/msg/point_cloud.hpp>
 #include <sensor_msgs/msg/point_cloud2.hpp>
 #include <sensor_msgs/msg/imu.hpp>
-#include <std_msgs/msg/string.hpp>
 #include <geometry_msgs/msg/twist_with_covariance_stamped.hpp>
-#include <nav_msgs/msg/odometry.hpp>
-#include <pcl/filters/voxel_grid.h>
 #include <pcl/point_types.h>
 #include <pcl_conversions/pcl_conversions.h>
 #include "Eigen/Dense"
-#include <opencv2/core/eigen.hpp>
 #include <opencv2/core/core.hpp>
 #include "rio_utils/radar_point_cloud.hpp"
 #include "RadarEgoVel.hpp"
@@ -17,20 +13,21 @@
 #include <vector>
 #include <tf2_geometry_msgs/tf2_geometry_msgs.hpp>
 #include <tf2/LinearMath/Transform.h>
-  
+
+// RadarProcessor class handles point cloud processing, transformation between sensor frames, and ego-velocity estimation using radar data.
 class RadarProcessor : public rclcpp::Node {
 public:
 
     RadarProcessor() : Node("Radar_pcl_processor") {
+        // Retrieve parameters and set up communication channels.
         getParams();
         setupSubscribersAndPublishers();
         initializeTransformation();
     }
 
 private:
-
+    // Function to load parameters from the ROS2 parameter server.
     void getParams() {
-
         rio::RadarEgoVelocityEstimatorConfig config;
         this->get_parameter("imu_topic", imu_topic);
         this->get_parameter("radar_topic", radar_topic);
@@ -67,11 +64,8 @@ private:
         estimator = std::make_shared<rio::RadarEgoVel>(config);
 
     }
-
+    // Set up ROS2 subscribers and publishers for IMU and radar point clouds.
     void setupSubscribersAndPublishers() {
-
-
-        // Usar los tópicos en las suscripciones
         imu_sub_ = create_subscription<sensor_msgs::msg::Imu>(
             imu_topic, 10, [this](const sensor_msgs::msg::Imu::SharedPtr msg) {
                 imuCallback(msg);
@@ -81,7 +75,7 @@ private:
             radar_topic, 10, [this](const sensor_msgs::msg::PointCloud::SharedPtr msg) {
                 cloudCallback(msg);
         });
-
+       // Publishers for processed data.
         pub_twist = create_publisher<geometry_msgs::msg::TwistWithCovarianceStamped>("/Ego_Vel_Twist", 5);
         radar_filtered_ = create_publisher<sensor_msgs::msg::PointCloud2>("/filtered_pointcloud", 10);
         pub_inlier_pc2 = create_publisher<sensor_msgs::msg::PointCloud2>("/inlier_pointcloud", 5);
@@ -89,9 +83,10 @@ private:
         pc2_raw_pub = create_publisher<sensor_msgs::msg::PointCloud2>("/raw_pointcloud", 10);
         
     }
-
+    
+    // Transformation from Livox to RGB frame.  ---------------------------------------------- // CHANGE IF NEEDED //
     void initializeTransformation() {
-
+        
         livox_to_rgb = (cv::Mat_<double>(4,4) << 
         -0.006878330000, -0.999969000000, 0.003857230000, 0.029164500000,  
         -7.737180000000E-05, -0.003856790000, -0.999993000000, 0.045695200000,
@@ -117,7 +112,7 @@ private:
         radar_to_livox = rgb_to_livox * thermal_to_rgb * radar_to_thermal * change_radarframe;
 
     }
-
+    // IMU callback for processing orientation and updating quaternions. ------------------ // CHANGE IF NEEDED //
     void imuCallback(const sensor_msgs::msg::Imu::SharedPtr imu_msg) {
         
         Eigen::Quaterniond q_ahrs(imu_msg->orientation.w,
@@ -132,23 +127,22 @@ private:
             Eigen::AngleAxisd(0.00000, Eigen::Vector3d::UnitZ()) * 
             Eigen::AngleAxisd(0.00000, Eigen::Vector3d::UnitY()) * 
             Eigen::AngleAxisd(M_PI, Eigen::Vector3d::UnitX());
-        Eigen::Quaterniond q_out =  q_r * q_ahrs * q_rr;
+        Eigen::Quaterniond q_out =  q_r * q_ahrs * q_rr;       
 
         q_actual = tf2::Quaternion(q_out.x(), q_out.y(), q_out.z(), q_out.w());
     }
 
+    // Radar point cloud callback for filtering and processing radar data.
     void cloudCallback(const sensor_msgs::msg::PointCloud::SharedPtr pcl_msg) {
         
-        // radarpoint_raw -> (x,y,z,intensity,doppler)
-        RadarPointCloudType radarpoint_raw;
+        RadarPointCloudType radarpoint_raw; //  -> (x,y,z,intensity,doppler)
         pcl::PointCloud<RadarPointCloudType>::Ptr radarcloud_raw(new pcl::PointCloud<RadarPointCloudType>);
 
-        // Radar_to_Livox
+        // Filter and transform radar data from the radar frame to Livox frame.
         for (size_t i = 0; i < pcl_msg->points.size(); ++i) {
             if (pcl_msg->channels[2].values[i] > 0.0) {
                 if (std::isnan(pcl_msg->points[i].x) || std::isinf(pcl_msg->points[i].y) || std::isinf(pcl_msg->points[i].z))
                     continue;
-
                 cv::Mat ptMat, dstMat;
                 ptMat = (cv::Mat_<double>(4, 1) << pcl_msg->points[i].x, pcl_msg->points[i].y, pcl_msg->points[i].z, 1);
                 if (ptMat.empty()) {
@@ -165,14 +159,14 @@ private:
             }
         }
 
-        // Publish radarpoint_raw
+        // Publish the raw radar point cloud data.
         sensor_msgs::msg::PointCloud2 pc2_raw_msg;
         pcl::toROSMsg(*radarcloud_raw, pc2_raw_msg);
         pc2_raw_msg.header.stamp = pcl_msg->header.stamp;
         pc2_raw_msg.header.frame_id = "base_link";
         pc2_raw_pub->publish(pc2_raw_msg);
 
-        // Ego Velocity Estimation
+        // Estimate ego velocity based on the radar data.
         Eigen::Vector3d v_r, sigma_v_r;
         sensor_msgs::msg::PointCloud2 inlier_radar_msg, outlier_radar_msg;
 
@@ -203,6 +197,7 @@ private:
         pcl::fromROSMsg(inlier_radar_msg, *radarcloud_inlier);
         pcl::fromROSMsg(pc2_raw_msg, *radarcloud_raw_);
 
+        // Filtering point clouds based on distance and thresholds
         pcl::PointCloud<pcl::PointXYZI>::ConstPtr src_cloud;
         if(enable_dynamic_object_removal){
             src_cloud = radarcloud_inlier;
@@ -223,7 +218,7 @@ private:
         radar_filtered_->publish(cloud_msg);
         q_prev = q_actual;
     }
-
+    
     pcl::PointCloud<pcl::PointXYZI>::ConstPtr distance_filter(const pcl::PointCloud<pcl::PointXYZI>::ConstPtr& cloud) const {
         pcl::PointCloud<pcl::PointXYZI>::Ptr filtered(new pcl::PointCloud<pcl::PointXYZI>);
         filtered->reserve(cloud->size());

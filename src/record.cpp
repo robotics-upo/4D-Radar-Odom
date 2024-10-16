@@ -1,16 +1,13 @@
 #include "rclcpp/rclcpp.hpp"
-#include "geometry_msgs/msg/pose_stamped.hpp"
 #include "nav_msgs/msg/odometry.hpp"
 #include <fstream>
-#include <iostream>
 
 class RecordNode : public rclcpp::Node {
 public:
     RecordNode() : Node("pose_logger_node") {
         odom_subscription_ = this->create_subscription<nav_msgs::msg::Odometry>(
             "/odometry", 10, std::bind(&RecordNode::odom_callback, this, std::placeholders::_1));
-        pose_subscription_ = this->create_subscription<nav_msgs::msg::Odometry>(
-            "/gt", 10, std::bind(&RecordNode::pose_callback, this, std::placeholders::_1));
+        
 
         odom_file_ = std::ofstream("odometry.txt");
     }
@@ -19,12 +16,6 @@ private:
     void odom_callback(const nav_msgs::msg::Odometry::SharedPtr msg) {
         save_odom_to_file(odom_file_, msg);
 
-    }
-
-
-    void pose_callback(const nav_msgs::msg::Odometry::SharedPtr msg) {
-        
-        
     }
 
     void save_odom_to_file(std::ofstream& file, const nav_msgs::msg::Odometry::SharedPtr msg) {

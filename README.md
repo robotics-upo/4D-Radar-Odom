@@ -104,12 +104,16 @@ Follow these steps to install the `radar_odom` package from the `Radar_Odom` rep
     ```bash
     source install/setup.bash
     ```
+4. **Launch the nodes**:
+
+   Once the package is ready, you can launch the file, which initializes both nodes. The nodes will then remain active, waiting to receive data through the IMU and radar topics.
+    ```bash
+    ros2 launch radar_odom run.py
+    ```
+    
 
 <p align="right">(<a href="#readme-top">back to top</a>)</p>
 
----
-
-## Tuning 
 
 ## Tuning
 
@@ -124,7 +128,7 @@ This node is responsible for processing radar and IMU data, estimating Doppler-b
   - `radar_topic`: Specify the radar point cloud topic to process.
 
 - **Vehicle Dynamics**:
-  - `holonomic_vehicle`: Set to `true` for holonomic vehicles or `false` for non-holonomic ones.
+  - `holonomic_vehicle`: Set to `true` for holonomic ground vehicles or `false` for non-holonomic ones.
   
 - **Filtering Parameters**:
   - `distance_near_thresh` / `distance_far_thresh`: Defines the range of radar points to consider for processing.
@@ -148,6 +152,17 @@ This node handles the pose graph optimization using radar and IMU data, where ke
 
 - **Optimization Window**:
   - `max_window_size`: Defines the size of the sliding window for graph optimization, determining how many keyframes are optimized at once.
+### 3. **Additional Calibration Considerations**:
+
+In addition to the initial configuration of the parameters, it is important to set up the necessary transformations and calibrations between the IMU and radar sensors. These calibrations involve adjusting the sensor readings to align their reference frames. This can be done within the `pcl_processor` node, where transformations for the radar and IMU must be specified to ensure accurate velocity and pose estimation.
+
+The current setup is adapted to the specific dataset NTU4DRadLM(https://github.com/junzhang2016/NTU4DRadLM.git) and includes transformations such as:
+- IMU to radar frame transformations.
+- Radar point cloud adjustments based on its mounting orientation and reference frame.
+
+These transformations ensure that the data from each sensor is correctly aligned before processing.
+  
+
 
 <p align="right">(<a href="#readme-top">back to top</a>)</p>
 
