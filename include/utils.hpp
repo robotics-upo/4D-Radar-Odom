@@ -74,24 +74,5 @@ Eigen::Matrix4d transformToMatrix(const tf2::Transform& transform) {
     return matrix;
 }
 
-void print_error(Eigen::Matrix4d pose1,Eigen::Matrix4d pose2,Eigen::Matrix4d icp){
-
-
-    Eigen::Matrix4d estimated_pose = pose1 * icp;
-
-    // Eigen::Matrix4d error = estimated_pose.inverse() * pose2;
-
-    Eigen::Vector3d translation_error = estimated_pose.block<3,1>(0,3) - pose2.block<3, 1>(0, 3);
-    Eigen::Matrix4d error = pose2.inverse() * estimated_pose;
-
-    Eigen::Quaterniond q_estimated(estimated_pose.block<3, 3>(0, 0));
-    q_estimated.normalize();
-    Eigen::Quaterniond q_b(pose2.block<3, 3>(0, 0));
-    q_b.normalize();
-    Eigen::Quaterniond rotation_error = q_estimated.inverse()*q_b;
-
-    std::cerr << "Error en traslacion: " << translation_error.transpose() << std::endl;
-    std::cerr << "Error en traslacion 2: " << error.block<3,1>(0,3) << std::endl;
-}
 
 #endif // UTILS_HPP

@@ -59,4 +59,4 @@ private:
 
     const Eigen::Vector3d t_ab_icp_;
     const double w_;
-}
+};

@@ -1,6 +1,15 @@
 cmake_minimum_required(VERSION 3.8)
 project(radar_odom)
 
+# Establece políticas para suprimir advertencias de CMake
+if(POLICY CMP0144)
+  cmake_policy(SET CMP0144 NEW)
+endif()
+
+if(POLICY CMP0167)
+  cmake_policy(SET CMP0167 NEW)
+endif()
+
 if(CMAKE_COMPILER_IS_GNUCXX OR CMAKE_CXX_COMPILER_ID MATCHES "Clang")
   add_compile_options(-Wall -Wextra -Wpedantic)
 endif()
@@ -20,7 +29,6 @@ find_package(Ceres REQUIRED)
 find_package(tf2_geometry_msgs REQUIRED)
 find_package(tf2_ros REQUIRED)
 
-
 include_directories(
   include
   ${CERES_INCLUDE_DIRS}
@@ -33,13 +41,12 @@ add_executable(optimizer src/optimizer.cpp)
 add_executable(record src/record.cpp)
 add_executable(baselink_tf src/baselink_tf.cpp)
 
-ament_target_dependencies(radar_pcl_processor rclcpp sensor_msgs geometry_msgs pcl_conversions pcl_ros Eigen3 OpenCV)
+ament_target_dependencies(radar_pcl_processor rclcpp sensor_msgs geometry_msgs pcl_conversions pcl_ros Eigen3 OpenCV angles)
 ament_target_dependencies(optimizer rclcpp nav_msgs sensor_msgs geometry_msgs Eigen3 tf2_ros tf2_geometry_msgs Ceres pcl_ros pcl_conversions)  
 ament_target_dependencies(record rclcpp nav_msgs geometry_msgs)
 ament_target_dependencies(baselink_tf rclcpp nav_msgs tf2_ros)
 
 target_link_libraries(optimizer ${CERES_LIBRARIES} ${PCL_LIBRARIES})
-
 
 install(TARGETS
   radar_pcl_processor
@@ -57,19 +64,8 @@ install(DIRECTORY
   DESTINATION share/${PROJECT_NAME}/config
 )
 
-install(DIRECTORY
-  datasets/
-  DESTINATION share/${PROJECT_NAME}/datasets
-)
-
 if(BUILD_TESTING)
   find_package(ament_lint_auto REQUIRED)
-  # the following line skips the linter which checks for copyrights
-  # comment the line when a copyright and license is added to all source files
-  set(ament_cmake_copyright_FOUND TRUE)
-  # the following line skips cpplint (only works in a git repo)
-  # comment the line when this package is in a git repo and when
-  # a copyright and license is added to all source files
   set(ament_cmake_cpplint_FOUND TRUE)
   ament_lint_auto_find_test_dependencies()
 endif()
