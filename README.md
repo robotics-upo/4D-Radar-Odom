@@ -3,8 +3,7 @@
 <br />
 <div>
 
-# Radar Based Odometry for Ground Vehicles
-
+# Loosely coupled 4D-Radar-Inertial Odometry for Ground Robots
 </div>
 <!-- TABLE OF CONTENTS -->
 <details>
