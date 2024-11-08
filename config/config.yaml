@@ -41,7 +41,7 @@ radar_pcl_processor:
     
 graph_slam:
   ros_parameters:
-    bias_rpy: [0.0, 0.0, 0.0]   #IMU orientation bias
+    bias_rpy: [0.0, 0.0, 0.0]   #IMU orientation bias in rads
 
     #Keyframe Thresholds
     keyframe_delta_trans : 1.0
