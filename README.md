@@ -172,6 +172,12 @@ The current setup is adapted to the specific dataset NTU4DRadLM(https://github.c
 These transformations ensure that the data from each sensor is correctly aligned before processing.
   
 
+## Acknowledgements
 
+This work was supported by the grant INSERTION PID2021-127648OB-C31, funded by MCIN/AEI/ 10.13039/501100011033 and “European Union NextGenera-
+tionEU/PRTR”.
+<p align="">
+  <img src="figures/logo_mciu.png" alt="System Structure" />
+</p>
 <p align="right">(<a href="#readme-top">back to top</a>)</p>
 
