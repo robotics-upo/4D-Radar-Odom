@@ -13,12 +13,16 @@
 #include <vector>
 #include <tf2_geometry_msgs/tf2_geometry_msgs.hpp>
 #include <tf2/LinearMath/Transform.h>
+#include <sensor_msgs/point_cloud2_iterator.hpp>
 
-// RadarProcessor class handles point cloud processing, transformation between sensor frames,
+
+// RadarPclProcessor class handles point cloud processing, transformation between sensor frames,
 // and ego-velocity estimation using radar data.
-class RadarProcessor : public rclcpp::Node {
+class radarPclProcessor : public rclcpp::Node {
 public:
-    RadarProcessor() : Node("Radar_pcl_processor") {
+    radarPclProcessor() : Node("radar_pcl_processor") {
+        
+        declareParams();
         // Retrieve parameters and set up communication channels.
         getParams();
         setupSubscribersAndPublishers();
@@ -26,6 +30,56 @@ public:
     }
 
 private:
+
+
+    void declareParams()
+    {
+        // topics & flags
+        this->declare_parameter<std::string>("imu_topic", "/arco/idmind_imu/imu");
+        this->declare_parameter<std::string>("radar_topic", "/arco/radar/PointCloudDetection");
+        this->declare_parameter<bool>("holonomic_vehicle", true);
+        this->declare_parameter<bool>("enable_dynamic_object_removal", true);
+
+        // frame poses [x, y, z, roll, pitch, yaw]
+        this->declare_parameter<std::vector<double>>(
+        "imu_to_base_link", std::vector<double>{0.0, 0.0, 0.165, 0.0, 0.0, 0.0});
+        this->declare_parameter<std::vector<double>>(
+        "radar_to_base_link", std::vector<double>{0.45, 0.05, 0.5, 0.0, 0.0, 0.0});
+
+        // channel indices
+        this->declare_parameter<int64_t>("intensity_channel", 2);
+        this->declare_parameter<int64_t>("doppler_channel", 0);
+
+        // distance / height filters
+        this->declare_parameter<double>("distance_near_thresh", 0.1);
+        this->declare_parameter<double>("distance_far_thresh", 80.0);
+        this->declare_parameter<double>("z_low_thresh", -40.0);
+        this->declare_parameter<double>("z_high_thresh", 100.0);
+
+        // ego‑velocity estimator params
+        this->declare_parameter<double>("min_dist", 0.5);
+        this->declare_parameter<double>("max_dist", 400.0);
+        this->declare_parameter<double>("min_db", 5.0);
+        this->declare_parameter<double>("elevation_thresh_deg", 50.0);
+        this->declare_parameter<double>("azimuth_thresh_deg", 56.5);
+        this->declare_parameter<double>("doppler_velocity_correction_factor", 1.0);
+        this->declare_parameter<double>("thresh_zero_velocity", 0.05);
+        this->declare_parameter<double>("allowed_outlier_percentage", 0.30);
+        this->declare_parameter<double>("sigma_zero_velocity_x", 1.0e-3);
+        this->declare_parameter<double>("sigma_zero_velocity_y", 3.2e-3);
+        this->declare_parameter<double>("sigma_zero_velocity_z", 1.0e-2);
+        this->declare_parameter<double>("sigma_offset_radar_x", 0.0);
+        this->declare_parameter<double>("sigma_offset_radar_y", 0.0);
+        this->declare_parameter<double>("sigma_offset_radar_z", 0.0);
+        this->declare_parameter<double>("max_sigma_x", 0.2);
+        this->declare_parameter<double>("max_sigma_y", 0.2);
+        this->declare_parameter<double>("max_sigma_z", 0.2);
+        this->declare_parameter<double>("max_r_cond", 0.2);
+        this->declare_parameter<double>("outlier_prob", 0.05);
+        this->declare_parameter<double>("success_prob", 0.995);
+        this->declare_parameter<double>("N_ransac_points", 5.0);
+        this->declare_parameter<double>("inlier_thresh", 0.5);
+    }
     // Function to load parameters from the ROS2 parameter server.
     void getParams() {
         rio::RadarEgoVelocityEstimatorConfig config;
@@ -39,6 +93,8 @@ private:
         this->get_parameter("distance_far_thresh", distance_far_thresh_);
         this->get_parameter("z_low_thresh", z_low_thresh_);
         this->get_parameter("z_high_thresh", z_high_thresh_);
+        this->get_parameter("imu_to_base_link", imu_pose_);
+        this->get_parameter("radar_to_base_link", radar_pose_);
 
         // Retrieve estimator configuration parameters
         this->get_parameter("min_dist", config.min_dist);
@@ -68,19 +124,74 @@ private:
 
         // Initialize the radar ego-velocity estimator with the retrieved configuration
         estimator_ = std::make_shared<rio::RadarEgoVel>(config);
+
+        // --- Now print them out ---
+        RCLCPP_INFO(get_logger(), "=== Loaded Parameters ===");
+        RCLCPP_INFO(get_logger(), "imu_topic: %s", imu_topic_.c_str());
+        RCLCPP_INFO(get_logger(), "radar_topic: %s", radar_topic_.c_str());
+        RCLCPP_INFO(get_logger(), "enable_dynamic_object_removal: %s",
+                    enable_dynamic_object_removal_ ? "true" : "false");
+        RCLCPP_INFO(get_logger(), "holonomic_vehicle: %s",
+                    holonomic_vehicle_ ? "true" : "false");
+
+        auto printVec6 = [&](const std::string &name, const std::vector<double> &v) {
+        if (v.size() == 6) {
+            RCLCPP_INFO(get_logger(), "%s: [%.3f, %.3f, %.3f, %.3f, %.3f, %.3f]",
+                        name.c_str(), v[0], v[1], v[2], v[3], v[4], v[5]);
+        } else {
+            RCLCPP_WARN(get_logger(), "%s has %zu elements (expected 6)", name.c_str(), v.size());
+        }
+        };
+        printVec6("imu_to_base_link", imu_pose_);
+        printVec6("radar_to_base_link", radar_pose_);
+
+        RCLCPP_INFO(get_logger(), "distance_near_thresh: %.3f", distance_near_thresh_);
+        RCLCPP_INFO(get_logger(), "distance_far_thresh:  %.3f", distance_far_thresh_);
+        RCLCPP_INFO(get_logger(), "z_low_thresh:          %.3f", z_low_thresh_);
+        RCLCPP_INFO(get_logger(), "z_high_thresh:         %.3f", z_high_thresh_);
+
+        RCLCPP_INFO(get_logger(), "min_dist:                        %.3f", config.min_dist);
+        RCLCPP_INFO(get_logger(), "max_dist:                        %.3f", config.max_dist);
+        RCLCPP_INFO(get_logger(), "min_db:                          %.3f", config.min_db);
+        RCLCPP_INFO(get_logger(), "elevation_thresh_deg:            %.3f", config.elevation_thresh_deg);
+        RCLCPP_INFO(get_logger(), "azimuth_thresh_deg:              %.3f", config.azimuth_thresh_deg);
+        RCLCPP_INFO(get_logger(), "doppler_velocity_correction_factor: %.3f", config.doppler_velocity_correction_factor);
+        RCLCPP_INFO(get_logger(), "thresh_zero_velocity:            %.3f", config.thresh_zero_velocity);
+        RCLCPP_INFO(get_logger(), "allowed_outlier_percentage:      %.3f", config.allowed_outlier_percentage);
+        RCLCPP_INFO(get_logger(), "sigma_zero_velocity_x:           %.6f", config.sigma_zero_velocity_x);
+        RCLCPP_INFO(get_logger(), "sigma_zero_velocity_y:           %.6f", config.sigma_zero_velocity_y);
+        RCLCPP_INFO(get_logger(), "sigma_zero_velocity_z:           %.6f", config.sigma_zero_velocity_z);
+        RCLCPP_INFO(get_logger(), "sigma_offset_radar_x:            %.6f", config.sigma_offset_radar_x);
+        RCLCPP_INFO(get_logger(), "sigma_offset_radar_y:            %.6f", config.sigma_offset_radar_y);
+        RCLCPP_INFO(get_logger(), "sigma_offset_radar_z:            %.6f", config.sigma_offset_radar_z);
+        RCLCPP_INFO(get_logger(), "max_sigma_x:                     %.3f", config.max_sigma_x);
+        RCLCPP_INFO(get_logger(), "max_sigma_y:                     %.3f", config.max_sigma_y);
+        RCLCPP_INFO(get_logger(), "max_sigma_z:                     %.3f", config.max_sigma_z);
+        RCLCPP_INFO(get_logger(), "max_r_cond:                      %.3f", config.max_r_cond);
+        RCLCPP_INFO(get_logger(), "use_cholesky_instead_of_bdcsvd:  %s",
+                    config.use_cholesky_instead_of_bdcsvd ? "true" : "false");
+        RCLCPP_INFO(get_logger(), "use_ransac:                      %s",
+                    config.use_ransac ? "true" : "false");
+        RCLCPP_INFO(get_logger(), "outlier_prob:                    %.3f", config.outlier_prob);
+        RCLCPP_INFO(get_logger(), "success_prob:                    %.3f", config.success_prob);
+        RCLCPP_INFO(get_logger(), "N_ransac_points:                 %.1f", config.N_ransac_points);
+        RCLCPP_INFO(get_logger(), "inlier_thresh:                   %.3f", config.inlier_thresh);
     }
 
     // Set up ROS2 subscribers and publishers for IMU and radar point clouds.
     void setupSubscribersAndPublishers() {
+
+        rclcpp::SensorDataQoS qos; // Use a QoS profile compatible with sensor data
+
         // Subscribe to IMU data
         imu_subscriber_ = create_subscription<sensor_msgs::msg::Imu>(
-            imu_topic_, 10, [this](const sensor_msgs::msg::Imu::SharedPtr msg) {
+            imu_topic_, qos, [this](const sensor_msgs::msg::Imu::SharedPtr msg) {
                 imuCallback(msg);
             });
 
         // Subscribe to radar point cloud data
-        radar_subscriber_ = create_subscription<sensor_msgs::msg::PointCloud>(
-            radar_topic_, 10, [this](const sensor_msgs::msg::PointCloud::SharedPtr msg) {
+        radar_subscriber_ = create_subscription<sensor_msgs::msg::PointCloud2>(
+            radar_topic_, qos, [this](const sensor_msgs::msg::PointCloud2::SharedPtr msg) {
                 cloudCallback(msg);
             });
 
@@ -92,36 +203,56 @@ private:
         raw_pc2_publisher_ = create_publisher<sensor_msgs::msg::PointCloud2>("/raw_pointcloud", 10);
     }
 
-    // Initialize transformation matrices between different sensor frames
+
     void initializeTransformation() {
-        // Transformation from Livox to RGB frame (change if needed)
-        livox_to_rgb_ = (cv::Mat_<double>(4,4) <<
-            -0.006878330000, -0.999969000000, 0.003857230000, 0.029164500000,
-            -7.737180000000E-05, -0.003856790000, -0.999993000000, 0.045695200000,
-            0.999976000000, -0.006878580000, -5.084110000000E-05, -0.19018000000,
-            0, 0, 0, 1);
-        rgb_to_livox_ = livox_to_rgb_.inv();
+        
+        if (imu_pose_.size() != 6 || radar_pose_.size() != 6) {
+            throw std::runtime_error("Expected 6-element [x y z roll pitch yaw] vectors");
+        }
 
-        thermal_to_rgb_ = (cv::Mat_<double>(4,4) <<
-            0.9999526089706319, 0.008963747151337641, -0.003798822163962599, 0.18106962419014,
-            -0.008945181135788245, 0.9999481006917174, 0.004876439015823288, -0.04546324090016857,
-            0.00384233617405678, -0.004842226763999368, 0.999980894463835, 0.08046453079998771,
-            0, 0, 0, 1);
+        // 2) helper lambda to build a 4×4 from [x,y,z, roll,pitch,yaw]
+        auto makeTransform = [](const std::vector<double>& v){
+            double x = v[0], y = v[1], z = v[2];
+            double roll  = v[3], pitch = v[4], yaw   = v[5];
 
-        radar_to_thermal_ = (cv::Mat_<double>(4,4) <<
-            0.999665, 0.00925436, -0.0241851, -0.0248342,
-            -0.00826999, 0.999146, 0.0404891, 0.0958317,
-            0.0245392, -0.0402755, 0.998887, 0.0268037,
-            0, 0, 0, 1);
+            // Rotation around X (roll)
+            cv::Mat Rx = (cv::Mat_<double>(3,3) << 
+                1,           0,            0,
+                0,  cos(roll), -sin(roll),
+                0,  sin(roll),  cos(roll)
+            );
+            // Rotation around Y (pitch)
+            cv::Mat Ry = (cv::Mat_<double>(3,3) << 
+                cos(pitch), 0, sin(pitch),
+                        0, 1,          0,
+                -sin(pitch), 0, cos(pitch)
+            );
+            // Rotation around Z (yaw)
+            cv::Mat Rz = (cv::Mat_<double>(3,3) << 
+                cos(yaw), -sin(yaw), 0,
+                sin(yaw),  cos(yaw), 0,
+                    0,         0, 1
+            );
 
-        change_radar_frame_ = (cv::Mat_<double>(4,4) <<
-            0, -1, 0, 0,
-            0, 0, -1, 0,
-            1, 0, 0, 0,
-            0, 0, 0, 1);
+            // Compose in Z·Y·X order (i.e. roll, then pitch, then yaw)
+            cv::Mat R = Rz * Ry * Rx;
+            // Build 4×4
+            cv::Mat T = cv::Mat::eye(4,4,CV_64F);
+            R.copyTo(T(cv::Range(0,3), cv::Range(0,3)));
+            T.at<double>(0,3) = x;
+            T.at<double>(1,3) = y;
+            T.at<double>(2,3) = z;
+            return T;
+        };
 
-        // Compute the transformation from radar to Livox frame
-        radar_to_livox_ = rgb_to_livox_ * thermal_to_rgb_ * radar_to_thermal_ * change_radar_frame_;
+        cv::Mat T_imu_baselink   = makeTransform(imu_pose_);
+        cv::Mat T_radar_baselink = makeTransform(radar_pose_);
+
+        // 4) compute radar -> imu
+        radar_to_imu_ = T_imu_baselink.inv() * T_radar_baselink;
+
+        // RCLCPP_INFO(get_logger(), "radar_to_imu:\n%s",
+        //             cv::format(radar_to_imu_, cv::Formatter::FMT_DEFAULT).c_str());
     }
 
     // IMU callback for processing orientation and updating quaternions (change if needed)
@@ -150,34 +281,58 @@ private:
     }
 
     // Radar point cloud callback for filtering and processing radar data
-    void cloudCallback(const sensor_msgs::msg::PointCloud::SharedPtr pcl_msg) {
-        // Define a custom point type with Doppler velocity
-        RadarPointCloudType radar_point_raw;
+    void cloudCallback(const sensor_msgs::msg::PointCloud2::SharedPtr pcl_msg) {
+
+        // Create iterators for the fields we need.
+        sensor_msgs::PointCloud2ConstIterator<float> iter_x(*pcl_msg, "x");
+        sensor_msgs::PointCloud2ConstIterator<float> iter_y(*pcl_msg, "y");
+        sensor_msgs::PointCloud2ConstIterator<float> iter_z(*pcl_msg, "z");
+        sensor_msgs::PointCloud2ConstIterator<float> iter_v(*pcl_msg, "v");
+        sensor_msgs::PointCloud2ConstIterator<int8_t> iter_rcs(*pcl_msg, "RCS");
+
+        // Number of points in the cloud
+        size_t num_points = pcl_msg->width * pcl_msg->height;
+
+        // Create a PCL cloud to hold the transformed points.
         pcl::PointCloud<RadarPointCloudType>::Ptr radar_cloud_raw(new pcl::PointCloud<RadarPointCloudType>);
 
-        // Filter and transform radar data from the radar frame to Livox frame
-        for (size_t i = 0; i < pcl_msg->points.size(); ++i) {
-            if (pcl_msg->channels[2].values[i] > 0.0) {
-                if (std::isnan(pcl_msg->points[i].x) || std::isinf(pcl_msg->points[i].y) || std::isinf(pcl_msg->points[i].z))
-                    continue;
+        // Iterate through all points using the iterators.
+        for (size_t i = 0; i < num_points; ++i, ++iter_x, ++iter_y, ++iter_z, ++iter_v, ++iter_rcs) {
+            // Check for invalid data.
+            if (std::isnan(*iter_x) || std::isinf(*iter_y) || std::isinf(*iter_z))
+                continue;
 
-                // Transform point from radar frame to Livox frame
-                cv::Mat pt_mat = (cv::Mat_<double>(4, 1) << pcl_msg->points[i].x, pcl_msg->points[i].y, pcl_msg->points[i].z, 1);
-                if (pt_mat.empty()) {
-                    RCLCPP_WARN(get_logger(), "pt_mat is empty. Skipping this point.");
-                    continue;
-                }
-                cv::Mat dst_mat = radar_to_livox_ * pt_mat;
-
-                // Populate the radar point with transformed coordinates and Doppler data
-                radar_point_raw.x = dst_mat.at<double>(0, 0);
-                radar_point_raw.y = dst_mat.at<double>(1, 0);
-                radar_point_raw.z = dst_mat.at<double>(2, 0);
-                radar_point_raw.intensity = pcl_msg->channels[2].values[i];
-                radar_point_raw.doppler = pcl_msg->channels[0].values[i];
-                radar_cloud_raw->points.push_back(radar_point_raw);
+            // Create a homogeneous coordinate vector for the point.
+            cv::Mat pt_mat = (cv::Mat_<double>(4, 1) << *iter_x, *iter_y, *iter_z, 1.0);
+            if (pt_mat.empty()) {
+                RCLCPP_WARN(get_logger(), "pt_mat is empty. Skipping this point.");
+                continue;
             }
+
+            // RCLCPP_INFO(get_logger(),
+            // "[%zu] RAW → x=%.3f, y=%.3f, z=%.3f",
+            // i, *iter_x, *iter_y, *iter_z);
+
+            cv::Mat dst_mat = radar_to_imu_ * pt_mat;
+
+            // Populate a new RadarPointCloudType with the transformed coordinates.
+            RadarPointCloudType radar_point;
+            radar_point.x = dst_mat.at<double>(0, 0);
+            radar_point.y = dst_mat.at<double>(1, 0);
+            radar_point.z = dst_mat.at<double>(2, 0);
+            radar_point.intensity = static_cast<float>(*iter_rcs);
+            radar_point.doppler = *iter_v;
+
+            // RCLCPP_INFO(get_logger(),
+            // "[%zu] TRANS → x=%.3f, y=%.3f, z=%.3f, v=%.3f, RCS=%.3f",
+            // i, radar_point.x, radar_point.y, radar_point.z, radar_point.doppler, radar_point.intensity);
+
+            radar_cloud_raw->points.push_back(radar_point);
         }
+
+        //  // 6) Build and log the transform matrix
+        //  cv::String s = cv::format(radar_to_imu_, cv::Formatter::FMT_DEFAULT);
+        //  RCLCPP_INFO(get_logger(), "radar_to_imu:\n%s", s.c_str());
 
         // Publish the raw radar point cloud data
         sensor_msgs::msg::PointCloud2 pc2_raw_msg;
@@ -265,10 +420,10 @@ private:
     }
 
     // Member variables
-    std::string imu_topic_;
-    std::string radar_topic_;
+    std::string imu_topic_, radar_topic_;
+    std::vector<double> imu_pose_, radar_pose_;
 
-    rclcpp::Subscription<sensor_msgs::msg::PointCloud>::SharedPtr radar_subscriber_;
+    rclcpp::Subscription<sensor_msgs::msg::PointCloud2>::SharedPtr radar_subscriber_;
     rclcpp::Subscription<sensor_msgs::msg::Imu>::SharedPtr imu_subscriber_;
     rclcpp::Publisher<sensor_msgs::msg::PointCloud2>::SharedPtr radar_filtered_publisher_;
     rclcpp::Publisher<geometry_msgs::msg::TwistWithCovarianceStamped>::SharedPtr twist_publisher_;
@@ -277,6 +432,7 @@ private:
     rclcpp::Publisher<sensor_msgs::msg::PointCloud2>::SharedPtr raw_pc2_publisher_;
 
     cv::Mat radar_to_livox_, thermal_to_rgb_, radar_to_thermal_, rgb_to_livox_, livox_to_rgb_, change_radar_frame_;
+    cv::Mat radar_to_imu_;
     std::shared_ptr<rio::RadarEgoVel> estimator_;
 
     tf2::Quaternion q_previous_;
@@ -294,7 +450,7 @@ private:
 
 int main(int argc, char **argv) {
     rclcpp::init(argc, argv);
-    auto node = std::make_shared<RadarProcessor>();
+    auto node = std::make_shared<radarPclProcessor>();
     rclcpp::spin(node);
     rclcpp::shutdown();
     return 0;

@@ -1,0 +1,53 @@
+uav_radar_pcl_processor:
+  ros__parameters:
+    imu_topic: "/dji_sdk/imu"        # IMU topic
+    radar_topic: "/drone/radar/PointCloudDetection" # Radar topic
+    holonomic_vehicle: true            # Holonomic ground Vehicle (true/false)
+    imu_to_base_link: [0.0, 0.0, 0.0, 0.0, 0.0, 0.0] # x y z r p y 
+    radar_to_base_link: [-0.385, -0.02, -0.225, 0.0, 2.417, 3.14] 
+
+    #Channel number of intensity and doppler channel
+    intensity_channel: 2
+    doppler_channel: 0
+    enable_dynamic_object_removal: true # Remove dynamic objects
+
+    #Distance filter thresholds
+    distance_near_thresh: 0.1
+    distance_far_thresh: 80.0
+    z_low_thresh: -40.0
+    z_high_thresh: 100.0
+
+    #Ego velocity estimator thresholds/params
+    min_dist: 0.5
+    max_dist: 400.0
+    min_db: 5.0
+    elevation_thresh_deg: 50.00
+    azimuth_thresh_deg: 56.5
+    doppler_velocity_correction_factor: 1.0
+    thresh_zero_velocity: 0.05
+    allowed_outlier_percentage: 0.30
+    sigma_zero_velocity_x: 1.0e-03
+    sigma_zero_velocity_y: 3.2e-03
+    sigma_zero_velocity_z: 1.0e-02
+    sigma_offset_radar_x: 0.0
+    sigma_offset_radar_y: 0.0
+    sigma_offset_radar_z: 0.0
+    max_sigma_x: 0.2
+    max_sigma_y: 0.2
+    max_sigma_z: 0.2
+    max_r_cond: 0.2
+    outlier_prob: 0.05
+    success_prob: 0.995
+    N_ransac_points: 5.0
+    inlier_thresh: 0.5
+    
+graph_slam:
+  ros__parameters:
+    bias_rpy: [0.0, 0.0, 0.0]   #IMU orientation bias in rads
+
+    #Keyframe Thresholds
+    keyframe_delta_trans: 1.0
+    keyframe_delta_angle: 0.3
+
+    #Optimization window size
+    max_window_size: 5

@@ -149,6 +149,9 @@ namespace rio {
         valid_targets.emplace_back(v_pt);
       }
     }
+
+    RCLCPP_INFO(rclcpp::get_logger("RadarEgoVel"),
+    "  valid_targets after basic filter = %zu", valid_targets.size());
  
     // Proceed if we have enough valid targets
     if (valid_targets.size() > 2) {
@@ -160,6 +163,10 @@ namespace rio {
       const size_t n = v_dopplers.size() * (1.0 - config_.allowed_outlier_percentage);
       std::nth_element(v_dopplers.begin(), v_dopplers.begin() + n, v_dopplers.end());
       const auto median = v_dopplers[n];
+
+      RCLCPP_INFO(rclcpp::get_logger("RadarEgoVel"),
+    "  median(|v|) = %.3f  zero_thresh = %.3f",
+    median, config_.thresh_zero_velocity);
 
       if (median < config_.thresh_zero_velocity) {
         // Assume zero velocity if median Doppler is below threshold
@@ -192,6 +199,11 @@ namespace rio {
           radar_data, pitch, roll, yaw, is_holonomic,
           v_r, sigma_v_r, inlier_idx_best, outlier_idx_best
         );
+
+        RCLCPP_INFO(rclcpp::get_logger("RadarEgoVel"),
+        "  RANSAC returned %s, inliers=%zu, outliers=%zu",
+        success?"SUCCESS":"FAILURE",
+        inlier_idx_best.size(), outlier_idx_best.size());
 
         // Collect inliers and outliers
         for (const auto& idx : inlier_idx_best)
@@ -227,6 +239,20 @@ bool RadarEgoVel::solve3DFullRansac(const Eigen::MatrixXd& radar_data, const dou
     H_all.col(2) = radar_data.col(2);
     const Eigen::VectorXd y_all = radar_data.col(3);
 
+    //For holonomic solver
+    Eigen::Matrix3d R_pitch, R_roll;
+    R_pitch <<  cos(pitch), 0, sin(pitch),
+                    0,      1,      0,
+              -sin(pitch), 0, cos(pitch);
+
+    R_roll <<     1,       0,        0,
+                  0,  cos(roll), -sin(roll),
+                  0,  sin(roll),  cos(roll);
+
+    Eigen::Matrix3d R = R_roll * R_pitch;
+    // H_all is your N×3 matrix of raw unit-vectors
+    Eigen::MatrixXd H_trans = H_all * R.transpose();
+
     std::vector<uint> idx(radar_data.rows());
     for (uint k = 0; k < radar_data.rows(); ++k) idx[k] = k;
     
@@ -255,15 +281,16 @@ bool RadarEgoVel::solve3DFullRansac(const Eigen::MatrixXd& radar_data, const dou
                 for (int i = 0; i < radar_data.rows(); ++i) {
                   if(!is_holonomic){
                     // Calculation of expected_vr using the new equations:
-                   double expected_vr = v_r.x() * H_all(i, 0) * std::cos(pitch) * std::cos(yaw) +
+                    double expected_vr = v_r.x() * H_all(i, 0) * std::cos(pitch) * std::cos(yaw) +
                                    v_r.y() * H_all(i, 1) * std::cos(pitch) * std::sin(yaw) +
                                    v_r.z() * H_all(i, 2) * std::sin(pitch);
                     err(i) = std::abs(y_all(i) - expected_vr);
                     }else{
-                    // Calculation of expected_vr using the new equations:
-                    double expected_vr = H_all(i, 0) * std::cos(pitch) + 
-                                         H_all(i, 1) * std::cos(roll) +  
-                                         H_all(i, 2) * (std::sin(pitch) * std::sin(roll));
+
+                    double expected_vr = H_trans(i,0)*v_r.x() +
+                                          H_trans(i,1)*v_r.y() + 
+                                          H_trans(i,2)*v_r.z();
+                  
                     err(i) = std::abs(y_all(i) - expected_vr);
                     }
                 }
@@ -303,10 +330,22 @@ bool RadarEgoVel::solve3DFullRansac(const Eigen::MatrixXd& radar_data, const dou
         bool rtn = false;
         // Final call to solve3DFull with the inliers
         if(!is_holonomic){
-        bool rtn = solve3DFull_not_holonomic(radar_data_inlier, pitch, roll, yaw, v_r);
+          rtn = solve3DFull_not_holonomic(radar_data_inlier, pitch, roll, yaw, v_r);
+          // RCLCPP_INFO(rclcpp::get_logger("RadarEgoVel"),
+          //                 "[RANSAC] non-holonomic final solve returned rtn=%s",
+          //                 rtn ? "true" : "false");
         }else{
-          bool rtn = solve3DFull_holonomic(radar_data_inlier, pitch, roll, v_r);
+          rtn = solve3DFull_holonomic(radar_data_inlier, pitch, roll, v_r);
+          // RCLCPP_INFO(rclcpp::get_logger("RadarEgoVel"),
+          //               "[RANSAC] holonomic final solve returned rtn=%s",
+          //               rtn ? "true" : "false");
         }
+
+         // Log just before returning
+         RCLCPP_INFO(rclcpp::get_logger("RadarEgoVel"),
+         "[RANSAC] About to return final rtn=%s (inliers=%zu)",
+         rtn ? "true" : "false",
+         inlier_idx_best.size());
         return rtn;
     }
 
