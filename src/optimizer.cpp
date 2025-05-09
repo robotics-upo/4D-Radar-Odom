@@ -22,6 +22,8 @@ public:
     using PointT = pcl::PointXYZI;
 
     GraphSlam() : Node("graph_slam"), stop_processing_(false) {
+
+        rclcpp::SensorDataQoS qos; // Use a QoS profile compatible with sensor data
         // Subscribers
         ego_vel_subscriber_ = this->create_subscription<geometry_msgs::msg::TwistWithCovarianceStamped>(
             "/Ego_Vel_Twist", 300,
@@ -31,7 +33,7 @@ public:
             });
 
         imu_subscriber_ = this->create_subscription<sensor_msgs::msg::Imu>(
-            "/vectornav/imu", 1024,
+            "/vectornav/imu", qos,
             [this](const sensor_msgs::msg::Imu::SharedPtr msg) {
                 std::lock_guard<std::mutex> lock(queue_mutex_);
                 imu_queue_.push(transformImuData(msg));

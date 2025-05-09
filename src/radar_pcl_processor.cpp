@@ -38,6 +38,7 @@ private:
         this->declare_parameter<std::string>("imu_topic", "/arco/idmind_imu/imu");
         this->declare_parameter<std::string>("radar_topic", "/arco/radar/PointCloudDetection");
         this->declare_parameter<bool>("holonomic_vehicle", true);
+        this->declare_parameter<bool>("ground_vehicle", true);
         this->declare_parameter<bool>("enable_dynamic_object_removal", true);
 
         // frame poses [x, y, z, roll, pitch, yaw]
@@ -89,6 +90,7 @@ private:
         this->get_parameter("radar_topic", radar_topic_);
         this->get_parameter("enable_dynamic_object_removal", enable_dynamic_object_removal_);
         this->get_parameter("holonomic_vehicle", holonomic_vehicle_);
+        this->get_parameter("ground_vehicle", ground_vehicle_);
         this->get_parameter("distance_near_thresh", distance_near_thresh_);
         this->get_parameter("distance_far_thresh", distance_far_thresh_);
         this->get_parameter("z_low_thresh", z_low_thresh_);
@@ -133,6 +135,9 @@ private:
                     enable_dynamic_object_removal_ ? "true" : "false");
         RCLCPP_INFO(get_logger(), "holonomic_vehicle: %s",
                     holonomic_vehicle_ ? "true" : "false");
+
+        RCLCPP_INFO(get_logger(), "ground_vehicle: %s",
+                    ground_vehicle_ ? "true" : "false");
 
         auto printVec6 = [&](const std::string &name, const std::vector<double> &v) {
         if (v.size() == 6) {
@@ -357,7 +362,7 @@ private:
         q_rotation_matrix.getRPY(roll, pitch, yaw);
 
         // Estimate ego velocity using the radar ego-velocity estimator
-        if (estimator_->estimate(pc2_raw_msg, pitch, roll, yaw, holonomic_vehicle_, v_radar, sigma_v_radar, inlier_radar_msg, outlier_radar_msg)) {
+        if (estimator_->estimate(pc2_raw_msg, pitch, roll, yaw, holonomic_vehicle_, ground_vehicle_, v_radar, sigma_v_radar, inlier_radar_msg, outlier_radar_msg)) {
             // Publish the estimated twist with covariance
             geometry_msgs::msg::TwistWithCovarianceStamped twist_msg;
             twist_msg.header.stamp = pc2_raw_msg.header.stamp;
@@ -442,6 +447,7 @@ private:
     bool initialization_ = true;
     bool enable_dynamic_object_removal_;
     bool holonomic_vehicle_;
+    bool ground_vehicle_;
     double distance_near_thresh_;
     double distance_far_thresh_;
     double z_low_thresh_;

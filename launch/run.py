@@ -39,19 +39,47 @@ def generate_launch_description():
         parameters=[config_agv]
     )
 
-    # optimizer = Node(
-    #     package='radar_odom',
-    #     executable='optimizer',
-    #     output='screen',
-    #     name='optimizer'
-    # )
+    agv_optimizer = Node(
+        package='radar_odom',
+        executable='optimizer',
+        output='screen',
+        name='agv_optimizer',
+        remappings = [
+            ('/filtered_points', 'agv/filtered_pointcloud'),
+            ('/Ego_Vel_Twist', 'agv/Ego_Vel_Twist'),
+            ('/vectornav/imu', '/arco/idmind_imu/imu'),
+            ('/odometry', 'agv/radar_odometry'),
+            ('/keyframe_cloud', 'agv/keyframe_cloud'),
+        ]
+    )
 
-    # baselink_tf = Node(
-    #     package='radar_odom',
-    #     executable='baselink_tf',
-    #     name='baselink_tf',
-    #     parameters=[{'topic_name': '/odometry'}]
-    # )
+    uav_optimizer = Node(
+        package='radar_odom',
+        executable='optimizer',
+        output='screen',
+        name='uav_optimizer',
+        remappings = [
+            ('/filtered_points', 'uav/filtered_pointcloud'),
+            ('/Ego_Vel_Twist', 'uav/Ego_Vel_Twist'),
+            ('/vectornav/imu', '/dji_sdk/imu'),
+            ('/odometry', 'uav/radar_odometry'),
+            ('/keyframe_cloud', 'uav/keyframe_cloud'),
+        ]
+    )
+
+    agv_baselink_tf = Node(
+        package='radar_odom',
+        executable='baselink_tf',
+        name='agv_baselink_tf',
+        parameters=[{'topic_name': 'agv/odometry'}]
+    )
+
+    uav_baselink_tf = Node(
+        package='radar_odom',
+        executable='baselink_tf',
+        name='uav_baselink_tf',
+        parameters=[{'topic_name': 'uav/odometry'}]
+    )
 
     # record = Node(
     #     package='radar_odom',
@@ -59,9 +87,7 @@ def generate_launch_description():
     #     name='record'
     # )
 
-    #nodes_to_execute = [radar_pcl_processor,optimizer,record,baselink_tf]
     nodes_to_execute = [uav_radar_pcl_processor, agv_radar_pcl_processor]
-
-
+    # nodes_to_execute = [uav_radar_pcl_processor, agv_radar_pcl_processor, agv_optimizer, uav_optimizer]
 
     return LaunchDescription(nodes_to_execute)

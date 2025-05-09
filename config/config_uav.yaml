@@ -3,6 +3,7 @@ uav_radar_pcl_processor:
     imu_topic: "/dji_sdk/imu"        # IMU topic
     radar_topic: "/drone/radar/PointCloudDetection" # Radar topic
     holonomic_vehicle: true            # Holonomic ground Vehicle (true/false)
+    ground_vehicle: false # this is used to apply the motion constraints in holonomic case
     imu_to_base_link: [0.0, 0.0, 0.0, 0.0, 0.0, 0.0] # x y z r p y 
     radar_to_base_link: [-0.385, -0.02, -0.225, 0.0, 2.417, 3.14] 
 
@@ -41,7 +42,7 @@ uav_radar_pcl_processor:
     N_ransac_points: 5.0
     inlier_thresh: 0.5
     
-graph_slam:
+uav_optimizer:
   ros__parameters:
     bias_rpy: [0.0, 0.0, 0.0]   #IMU orientation bias in rads
 
