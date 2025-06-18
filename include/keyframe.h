@@ -28,10 +28,8 @@ class KeyFrame {
         KeyFrame(const int id, Eigen::Matrix4d pose, const pcl::PointCloud<pcl::PointXYZI>::Ptr& point_cloud, const rclcpp::Time& timestamp)
         : id_(id), point_cloud_(point_cloud), timestamp_(timestamp) {
 
-        // Extraer la posición desde la matriz de transformación
         position_ = pose.block<3, 1>(0, 3);
 
-        // Convertir la matriz de rotación a tf2::Matrix3x3
         tf2::Matrix3x3 tf_rotation;
         tf_rotation.setValue(
             pose(0, 0), pose(0, 1), pose(0, 2),
@@ -39,16 +37,13 @@ class KeyFrame {
             pose(2, 0), pose(2, 1), pose(2, 2)
         );
 
-        // Obtener los ángulos de Euler (roll, pitch, yaw) desde la matriz de rotación
         tf_rotation.getRPY(roll_, pitch_, yaw_);
         roll_imu_ = roll_;
         pitch_imu_ = pitch_;
 
-        // Crear un cuaternión desde la matriz de rotación
         tf2::Quaternion tf_quat;
         tf_rotation.getRotation(tf_quat);
 
-        // Convertir el cuaternión de tf2 a Eigen::Quaterniond
         orientation_ = Eigen::Quaterniond(tf_quat.w(), tf_quat.x(), tf_quat.y(), tf_quat.z());
     }
 
@@ -71,23 +66,18 @@ class KeyFrame {
         }
 
 
-        void update_params(double roll, double pitch, double yaw,double px,double py, double pz){
-
-           position_ = Eigen::Vector3d(px, py, pz);
-            yaw_ = yaw;
-            pitch_ = pitch;
-            roll_ = roll;
-            tf2::Quaternion tf_quat;
-            tf_quat.setRPY(roll_, pitch_, yaw_); 
-
-            // Normalizar el cuaternión de tf2
-            tf_quat.normalize();
-
-            // Convertir el cuaternión de tf2 a Eigen::Quaterniond
-            Eigen::Quaterniond q(tf_quat.w(), tf_quat.x(), tf_quat.y(), tf_quat.z());
-
-            // Asignar el cuaternión resultante a orientation_
+        void update_params(const Eigen::Quaterniond& q, const Eigen::Vector3d& position) {
             orientation_ = q.normalized();
+            position_ = position;
+
+            tf2::Quaternion tf_quat(q.x(), q.y(), q.z(), q.w());
+
+            double roll, pitch, yaw;
+            tf2::Matrix3x3(tf_quat).getRPY(roll, pitch, yaw);
+
+            roll_ = roll;
+            pitch_ = pitch;
+            yaw_ = yaw;
         }
          Eigen::Matrix4d get_Odom_tf() const {
             return odom_tf_;

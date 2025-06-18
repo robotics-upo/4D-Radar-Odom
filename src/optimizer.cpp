@@ -24,7 +24,7 @@ public:
     GraphSlam() : Node("graph_slam"), stop_processing_(false) {
         // Subscribers
         ego_vel_subscriber_ = this->create_subscription<geometry_msgs::msg::TwistWithCovarianceStamped>(
-            "/Ego_Vel_Twist", 300,
+            "/Ego_Vel_Twist", 3000,
             [this](const geometry_msgs::msg::TwistWithCovarianceStamped::SharedPtr msg) {
                 std::lock_guard<std::mutex> lock(queue_mutex_);
                 twist_queue_.push(msg);
@@ -38,7 +38,7 @@ public:
             });
 
         point_cloud_subscriber_ = this->create_subscription<sensor_msgs::msg::PointCloud2>(
-            "/filtered_points", 300,
+            "/filtered_pointcloud", 3000,
             [this](const sensor_msgs::msg::PointCloud2::SharedPtr msg) {
                 std::lock_guard<std::mutex> lock(queue_mutex_);
                 point_cloud_queue_.push(msg);
@@ -186,11 +186,13 @@ private:
         update_estimated_pose(twist_msg, dt_imu);
 
         if (decide(estimated_pose)) {
+            
             keyframe_pose = estimated_pose;
             keyframe_index++;
             KeyFrame actual_keyframe(keyframe_index, transformToMatrix(keyframe_pose), actual_cloud_, cloud_msg->header.stamp);
             Keyframes.push_back(actual_keyframe);
             yaw_integrated_kf = 0.0;
+            std::cout<<"Keyframe "<<keyframe_index<<" reached"<<std::endl;
 
             if (Keyframes.size() > 1) {
                 Eigen::Matrix4d prev_pose = Keyframes[Keyframes.size() - 2].getPose_matrix4d();
@@ -225,6 +227,7 @@ private:
                 odometry_msg.header.frame_id = "map";
 
                 if (Keyframes.size() > static_cast<size_t>(max_window_size)) {
+
                     KeyFrame published_keyframe = Keyframes[Keyframes.size() - max_window_size];
                     odometry_msg.header.stamp = published_keyframe.getTimestamp();
                     tf2::Transform odom_opt = matrixToTransform(published_keyframe.getPose_matrix4d());
@@ -252,47 +255,53 @@ private:
     }
 
     // Update the estimated pose using velocity and IMU data
-    void update_estimated_pose(
-        const geometry_msgs::msg::TwistWithCovarianceStamped::SharedPtr& twist_msg,
-        double dt) {
-
+    void update_estimated_pose(const geometry_msgs::msg::TwistWithCovarianceStamped::SharedPtr& twist_msg, double dt) {
+       
+        // Translation Vector
         double translation_x = twist_msg->twist.twist.linear.x * dt;
         double translation_y = twist_msg->twist.twist.linear.y * dt;
         double translation_z = twist_msg->twist.twist.linear.z * dt;
         tf2::Vector3 translation(translation_x, translation_y, translation_z);
 
-        q_rot = q_prev.inverse() * q_imu;
+        // Rotation between poses
+        q_rot =q_prev.inverse()*q_imu;
         q_rot.normalize();
         q_prev = q_imu;
 
         tf2::Matrix3x3 m(q_rot);
         double roll, pitch, yaw;
         m.getRPY(roll, pitch, yaw);
-
+        
+        // Create a new quaternion with the current roll and pitch and the new desired yaw
         tf2::Quaternion q_yaw;
         q_yaw.setRPY(roll, pitch, yaw_integrated);
         q_yaw.normalize();
 
+        // Transform matrix T12
         tf2::Transform transform;
         transform.setRotation(q_yaw);
         transform.setOrigin(translation);
-        estimated_pose = estimated_pose * transform;
 
+        estimated_pose = estimated_pose*transform;
+        
+        
         tf2::Quaternion q_current;
         tf2::Matrix3x3(estimated_pose.getRotation()).getRotation(q_current);
         q_current.normalize();
 
         double roll_current, pitch_current, yaw_current;
         tf2::Matrix3x3(q_current).getRPY(roll_current, pitch_current, yaw_current);
-
+        
         double roll_imu, pitch_imu, yaw_imu;
         tf2::Matrix3x3(q_imu).getRPY(roll_imu, pitch_imu, yaw_imu);
 
         tf2::Quaternion q_combined;
-        q_combined.setRPY(roll_imu - bias.x(), pitch_imu - bias.y(), yaw_current);
+        q_combined.setRPY(roll_imu-bias.x(), pitch_imu-bias.y(), yaw_current);
+        //q_combined.setRPY(roll_imu, pitch_imu, yaw_current);
         q_combined.normalize();
-
+   
         estimated_pose.setRotation(q_combined);
+
 
         if (!validatePose(estimated_pose)) {
             std::cerr << "Error: estimated pose contains NaN values, skipping update." << std::endl;
@@ -312,20 +321,21 @@ private:
 
     // Initialize parameters from the ROS parameter server
     void InitializeParams() {
-        this->declare_parameter<std::vector<double>>("bias_rpy", {0.0, 0.0, 0.0});
-        this->declare_parameter<double>("keyframe_delta_trans", 1.0);
-        this->declare_parameter<double>("keyframe_delta_angle", 0.1);
-        this->declare_parameter<int>("max_window_size", 10);
+
+        
+        keyframe_delta_trans = this->declare_parameter<double>("keyframe_delta_trans", 1.0);
+        keyframe_delta_angle = this->declare_parameter<double>("keyframe_delta_angle", 0.3);
+        max_window_size = this->declare_parameter<int>("max_window_size", 5);
 
         std::vector<double> bias_values;
-        this->get_parameter("bias_rpy", bias_values);
+        bias_values = this->declare_parameter<std::vector<double>>("bias_rpy", {0.0002, 0.0, 0.0});
+        std::cout<<"bias: "<<bias_values[0]<<", "<<bias_values[1]<<"."<<std::endl;
+        std::cout<<"W S: "<<max_window_size<<std::endl;
+        std::cout<<"Trsh pos : "<<keyframe_delta_trans<<" and rot: "<<keyframe_delta_angle<<std::endl;
+
         bias(0) = bias_values[0];
         bias(1) = bias_values[1];
         bias(2) = bias_values[2];
-
-        this->get_parameter("keyframe_delta_trans", keyframe_delta_trans);
-        this->get_parameter("keyframe_delta_angle", keyframe_delta_angle);
-        this->get_parameter("max_window_size", max_window_size);
 
         dt_imu = 0.0;
         initialization = true;

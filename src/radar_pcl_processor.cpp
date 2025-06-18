@@ -18,7 +18,7 @@
 // and ego-velocity estimation using radar data.
 class RadarProcessor : public rclcpp::Node {
 public:
-    RadarProcessor() : Node("Radar_pcl_processor") {
+    RadarProcessor() : Node("radar_pcl_processor") {
         // Retrieve parameters and set up communication channels.
         getParams();
         setupSubscribersAndPublishers();
@@ -31,6 +31,41 @@ private:
         rio::RadarEgoVelocityEstimatorConfig config;
 
         // Retrieve ROS parameters
+        // Retrieve ROS parameters with default values
+        this->declare_parameter<std::string>("imu_topic", "/vectornav/imu");
+        this->declare_parameter<std::string>("radar_topic", "/radar_enhanced_pcl");
+        this->declare_parameter<bool>("enable_dynamic_object_removal", true);
+        this->declare_parameter<bool>("holonomic_vehicle", true);
+        this->declare_parameter<double>("distance_near_thresh", 0.1);
+        this->declare_parameter<double>("distance_far_thresh", 80.0);
+        this->declare_parameter<double>("z_low_thresh", -40.0);
+        this->declare_parameter<double>("z_high_thresh", 100.0);
+        
+        // Retrieve estimator configuration parameters with default values
+        this->declare_parameter<double>("min_dist", 0.5);
+        this->declare_parameter<double>("max_dist", 400.0);
+        this->declare_parameter<double>("min_db", 5.0);
+        this->declare_parameter<double>("elevation_thresh_deg", 50.0);
+        this->declare_parameter<double>("azimuth_thresh_deg", 56.5);
+        this->declare_parameter<double>("doppler_velocity_correction_factor", 1.0);
+        this->declare_parameter<double>("thresh_zero_velocity", 0.05);
+        this->declare_parameter<double>("allowed_outlier_percentage", 0.30);
+        this->declare_parameter<double>("sigma_zero_velocity_x", 1.0e-03);
+        this->declare_parameter<double>("sigma_zero_velocity_y", 3.2e-03);
+        this->declare_parameter<double>("sigma_zero_velocity_z", 1.0e-02);
+        this->declare_parameter<double>("sigma_offset_radar_x", 0.0);
+        this->declare_parameter<double>("sigma_offset_radar_y", 0.0);
+        this->declare_parameter<double>("sigma_offset_radar_z", 0.0);
+        this->declare_parameter<double>("max_sigma_x", 0.2);
+        this->declare_parameter<double>("max_sigma_y", 0.2);
+        this->declare_parameter<double>("max_sigma_z", 0.2);
+        this->declare_parameter<double>("max_r_cond", 0.2);
+        this->declare_parameter<bool>("use_cholesky_instead_of_bdcsvd", false);
+        this->declare_parameter<bool>("use_ransac", true);
+        this->declare_parameter<double>("outlier_prob", 0.05);
+        this->declare_parameter<double>("success_prob", 0.995);
+        this->declare_parameter<double>("N_ransac_points", 5.0);
+        this->declare_parameter<double>("inlier_thresh", 0.5);
         this->get_parameter("imu_topic", imu_topic_);
         this->get_parameter("radar_topic", radar_topic_);
         this->get_parameter("enable_dynamic_object_removal", enable_dynamic_object_removal_);
@@ -68,6 +103,8 @@ private:
 
         // Initialize the radar ego-velocity estimator with the retrieved configuration
         estimator_ = std::make_shared<rio::RadarEgoVel>(config);
+
+        std::cout<<"Holonomic:"<<holonomic_vehicle_<<std::endl;
     }
 
     // Set up ROS2 subscribers and publishers for IMU and radar point clouds.

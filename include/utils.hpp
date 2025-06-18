@@ -73,6 +73,11 @@ Eigen::Matrix4d transformToMatrix(const tf2::Transform& transform) {
 
     return matrix;
 }
-
+inline Eigen::Quaterniond rpyToQuat(double roll, double pitch, double yaw) {
+    tf2::Quaternion tf_quat;
+    tf_quat.setRPY(roll, pitch, yaw);
+    tf_quat.normalize();
+    return Eigen::Quaterniond(tf_quat.w(), tf_quat.x(), tf_quat.y(), tf_quat.z()).normalized();
+}
 
 #endif // UTILS_HPP

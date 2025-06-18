@@ -1,5 +1,6 @@
 radar_pcl_processor:
   ros__parameters:
+  
     imu_topic: "/vectornav/imu"        # IMU topic
     radar_topic: "/radar_enhanced_pcl" # Radar topic
     holonomic_vehicle: true            # Holonomic ground Vehicle (true/false)
@@ -38,16 +39,4 @@ radar_pcl_processor:
     success_prob: 0.995
     N_ransac_points: 5.0
     inlier_thresh: 0.5
-    
-graph_slam:
-  ros_parameters:
-    bias_rpy: [0.0, 0.0, 0.0]   #IMU orientation bias in rads
-
-    #Keyframe Thresholds
-    keyframe_delta_trans : 1.0
-    keyframe_delta_angle: 0.3
-    
-    #Optimization window size
-    max_window_size : 5
-
-
+  

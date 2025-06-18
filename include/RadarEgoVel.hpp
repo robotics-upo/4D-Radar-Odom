@@ -187,6 +187,7 @@ namespace rio {
           );
         std::vector<uint> inlier_idx_best;
         std::vector<uint> outlier_idx_best;
+
          // Perform RANSAC-based estimation
         success = solve3DFullRansac(
           radar_data, pitch, roll, yaw, is_holonomic,
@@ -253,21 +254,15 @@ bool RadarEgoVel::solve3DFullRansac(const Eigen::MatrixXd& radar_data, const dou
             if (rtn) {
                 Eigen::VectorXd err(radar_data.rows());
                 for (int i = 0; i < radar_data.rows(); ++i) {
-                  if(!is_holonomic){
+                  
                     // Calculation of expected_vr using the new equations:
-                   double expected_vr = v_r.x() * H_all(i, 0) * std::cos(pitch) * std::cos(yaw) +
-                                   v_r.y() * H_all(i, 1) * std::cos(pitch) * std::sin(yaw) +
-                                   v_r.z() * H_all(i, 2) * std::sin(pitch);
+                   double expected_vr = v_r.x() * H_all(i, 0) +
+                                        v_r.y() * H_all(i, 1) +
+                                        v_r.z() * H_all(i, 2);
                     err(i) = std::abs(y_all(i) - expected_vr);
-                    }else{
-                    // Calculation of expected_vr using the new equations:
-                    double expected_vr = H_all(i, 0) * std::cos(pitch) + 
-                                         H_all(i, 1) * std::cos(roll) +  
-                                         H_all(i, 2) * (std::sin(pitch) * std::sin(roll));
-                    err(i) = std::abs(y_all(i) - expected_vr);
-                    }
-                }
 
+                }
+                
                 // Identification of inliers and outliers
                 std::vector<uint> inlier_idx;
                 std::vector<uint> outlier_idx;
@@ -294,7 +289,6 @@ bool RadarEgoVel::solve3DFullRansac(const Eigen::MatrixXd& radar_data, const dou
             }
         }
     }
-
     // Solve using the final inliers
     if (!inlier_idx_best.empty()) {
         Eigen::MatrixXd radar_data_inlier(inlier_idx_best.size(), 4);
@@ -303,9 +297,9 @@ bool RadarEgoVel::solve3DFullRansac(const Eigen::MatrixXd& radar_data, const dou
         bool rtn = false;
         // Final call to solve3DFull with the inliers
         if(!is_holonomic){
-        bool rtn = solve3DFull_not_holonomic(radar_data_inlier, pitch, roll, yaw, v_r);
+          rtn = solve3DFull_not_holonomic(radar_data_inlier, pitch, roll, yaw, v_r);
         }else{
-          bool rtn = solve3DFull_holonomic(radar_data_inlier, pitch, roll, v_r);
+          rtn = solve3DFull_holonomic(radar_data_inlier, pitch, roll, v_r);
         }
         return rtn;
     }
@@ -345,30 +339,32 @@ bool RadarEgoVel::solve3DFull_not_holonomic(const Eigen::MatrixXd& radar_data, c
 }
 
 bool RadarEgoVel::solve3DFull_holonomic(const Eigen::MatrixXd& radar_data, const double pitch, const double roll, Eigen::Vector3d& v_r) {
-    // Define the rotation matrix for pitch (rotation around the y-axis)
-    Eigen::Matrix3d R_pitch;
-    R_pitch << std::cos(pitch), 0, std::sin(pitch),
-               0, 1, 0,
-               -std::sin(pitch), 0, std::cos(pitch);
-
-    // Define the rotation matrix for roll (rotation around the x-axis)
-    Eigen::Matrix3d R_roll;
-    R_roll << 1, 0, 0,
-              0, std::cos(roll), -std::sin(roll),
-              0, std::sin(roll), std::cos(roll);
-
-    // Compute the combined rotation matrix by applying roll and then pitch
-    Eigen::Matrix3d R = R_roll * R_pitch;
 
     // Extract the normal vectors (H) and measurements (y) from radar_data
-    Eigen::MatrixXd H_all = radar_data.leftCols(3); 
-    Eigen::VectorXd y_all = radar_data.col(3);    
+    Eigen::MatrixXd H_all(radar_data.rows(), 3);
+    H_all.col(0) = radar_data.col(0); 
+    H_all.col(1) = radar_data.col(1);  
+    H_all.col(2) = radar_data.col(2);
+    Eigen::VectorXd y_all = radar_data.col(3); 
+  
+    Eigen::MatrixXd A(radar_data.rows(), 2);  
+    Eigen::VectorXd b(radar_data.rows());
 
-    // Rotate the normal vectors to align with the vehicle's orientation
-    Eigen::MatrixXd H_transformed = H_all * R.transpose();
+    for (int i = 0; i < H_all.rows(); ++i) {
+        A(i,0) = H_all(i,0) * std::cos(pitch)
+               + H_all(i,2) * std::sin(pitch);
+        A(i,1) = H_all(i,1) * std::cos(roll)
+               + H_all(i,2) * std::sin(roll);
+        b(i) = y_all(i);
+    }
+    Eigen::Vector2d V = (A.transpose() * A).ldlt().solve(A.transpose() * b);
+    double Vx = V(0);
+    double Vy = V(1);
 
-    // Solve the linear system H_transformed * v_r = y_all for the velocity vector v_r
-    v_r = (H_transformed.transpose() * H_transformed).ldlt().solve(H_transformed.transpose() * y_all);
+    v_r.x() = std::cos(pitch) * Vx;
+    v_r.y() = std::cos(roll)  * Vy;
+    v_r.z() = std::sin(pitch) * Vx
+            + std::sin(roll)  * Vy;
 
     return true;
 }

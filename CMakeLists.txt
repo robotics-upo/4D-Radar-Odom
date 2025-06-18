@@ -11,7 +11,7 @@ if(POLICY CMP0167)
 endif()
 
 if(CMAKE_COMPILER_IS_GNUCXX OR CMAKE_CXX_COMPILER_ID MATCHES "Clang")
-  add_compile_options(-Wall -Wextra -Wpedantic)
+  add_compile_options(-Wall -Wextra -Wpedantic -O3 -fopenmp-simd)
 endif()
 
 find_package(ament_cmake REQUIRED)
@@ -51,6 +51,8 @@ target_link_libraries(optimizer ${CERES_LIBRARIES} ${PCL_LIBRARIES})
 install(TARGETS
   radar_pcl_processor
   optimizer
+  record
+  baselink_tf
   DESTINATION lib/${PROJECT_NAME}
 )
 

@@ -1,0 +1,13 @@
+
+graph_slam:
+  ros__parameters:
+
+    bias_rpy: [0.00001, 0.0, 0.0]   #IMU orientation bias in rads
+    #Keyframe Thresholds
+    keyframe_delta_trans : 1.0
+    keyframe_delta_angle: 0.3
+    
+    #Optimization window size
+    max_window_size : 4
+
+

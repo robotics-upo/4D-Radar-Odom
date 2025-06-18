@@ -1,9 +1,9 @@
 #include "keyframe.h"
 
-#include "ceres/CostFunction_Ori.h"
-#include "ceres/CostFunction_Imu.h"
-#include "ceres/CostFunction_Trans.h"
-#include "ceres/CostFunction_Odom.h"
+#include "ceres/CostFunctionOri.h"
+#include "ceres/CostFunctionImu.h"
+#include "ceres/CostFunctionTrans.h"
+#include "ceres/CostFunctionOdom.h"
 #include <ceres/ceres.h>
 #include <pcl/point_types.h>
 #include <pcl/point_cloud.h>
@@ -50,6 +50,7 @@ public:
         Eigen::Matrix4d pose_source = (*keyframes_)[n].getPose_matrix4d();
 
         // Loop over the previous keyframes within the window
+        #pragma omp parallel for num_threads(20)
         for (int i = 1; i <= window_size - 1; i++) {
             int id_target = (*keyframes_)[n - i].getId();
 
@@ -98,126 +99,174 @@ public:
                     constraint.q = rotation.normalized();
                     constraint.t = translation;
                     constraint.w = weight;
-                    (*keyframes_)[n].addConstraint(constraint);
+                   #pragma omp critical
+                    {
+                        (*keyframes_)[n].addConstraint(constraint);
+                    }
                 }
             } else {
                 std::cerr << "ICP did not converge for nodes: " << id_source << " and " << id_target << std::endl;
             }
         }
     }
+void create_graph(int window_size)
+{
+    
+    if (window_size > max_window_size_)
+        window_size = max_window_size_;
 
-    // Create the optimization graph based on the current window of keyframes
-    void create_graph(int window_size) {
-        if (window_size > max_window_size_) {
-            window_size = max_window_size_;
+    params_.resize(window_size, 8);      // qw qx qy qz  tx ty tz flag
+    params_.setZero();
+
+    std::unordered_set<int> quat_done;
+    std::unordered_set<int> pos_done;
+
+    for (int i = 0; i < window_size; ++i)
+    {
+        KeyFrame& node = (*keyframes_)[keyframes_->size() - window_size + i];
+        size_t constraints_number = node.getConstraints().size();
+
+        int window_position_node =
+            (window_size < max_window_size_)
+                ? node.getId() - 1
+                : node.getId() - (keyframes_->size() - window_size) - 1;
+
+        Eigen::Quaterniond q = rpyToQuat(node.get_roll(),
+                                         node.get_pitch(),
+                                         node.get_yaw());
+        params_(window_position_node,0) = q.w();
+        params_(window_position_node,1) = q.x();
+        params_(window_position_node,2) = q.y();
+        params_(window_position_node,3) = q.z();
+        params_(window_position_node,4) = node.get_position()[0];
+        params_(window_position_node,5) = node.get_position()[1];
+        params_(window_position_node,6) = node.get_position()[2];
+        params_(window_position_node,7) = 1.0;
+
+        bool firstQuat = quat_done.insert(window_position_node).second;
+        if (firstQuat) {
+            
+            graph_.AddParameterBlock(&params_(window_position_node,0), 4);
+            graph_.SetManifold(&params_(window_position_node,0),
+                               new ceres::QuaternionManifold());
+        } 
+
+        bool firstPos = pos_done.insert(window_position_node).second;
+        if (firstPos) {
+            
+            graph_.AddParameterBlock(&params_(window_position_node,4), 3);
+        } 
+
+        // ── IMU ────────────────────────────────────────────────
+        ceres::CostFunction* cf_imu =
+            CostFunctionImu::Create(node.get_roll_imu(),
+                                     node.get_pitch_imu(), 1.0);
+        graph_.AddResidualBlock(cf_imu, nullptr,
+                              &params_(window_position_node,0));  // q_a (4)
+
+        if (window_position_node > 0)
+        {
+            KeyFrame& node_prev =
+                (*keyframes_)[keyframes_->size() - window_size + i - 1];
+            int window_position_related = window_position_node - 1;
+
+            Eigen::Quaterniond q_prev = rpyToQuat(node_prev.get_roll(),
+                                                  node_prev.get_pitch(),
+                                                  node_prev.get_yaw());
+            params_(window_position_related,0)=q_prev.w();
+            params_(window_position_related,1)=q_prev.x();
+            params_(window_position_related,2)=q_prev.y();
+            params_(window_position_related,3)=q_prev.z();
+            params_(window_position_related,4)=node_prev.get_position()[0];
+            params_(window_position_related,5)=node_prev.get_position()[1];
+            params_(window_position_related,6)=node_prev.get_position()[2];
+            params_(window_position_related,7)=1.0;
+
+            if (quat_done.insert(window_position_related).second) {
+               
+                graph_.AddParameterBlock(&params_(window_position_related,0),4);
+                graph_.SetManifold(&params_(window_position_related,0),
+                                   new ceres::QuaternionManifold());
+            }
+            if (pos_done.insert(window_position_related).second) {
+               
+                graph_.AddParameterBlock(&params_(window_position_related,4),3);
+            }
+
+            ceres::CostFunction* cf_odom =
+                CostFunctionOdom::Create(node.get_Odom_tf().block<3,1>(0,3),5.0);
+            graph_.AddResidualBlock(cf_odom, nullptr,
+                &params_(window_position_related,4),   // t_a (3)
+                &params_(window_position_node,   4),   // t_b (3)
+                &params_(window_position_related,0));  // q_a (4)
+
+            if (window_position_node == 1) {
+                graph_.SetParameterBlockConstant(&params_(window_position_related,0));
+                graph_.SetParameterBlockConstant(&params_(window_position_related,4));
+            }
         }
 
-        // Initialize parameters matrix
-        params_.resize(window_size, 7);
-        params_.setZero();
+        // ── LOOP-CLOSURE (GICP) ───────────────────────────────
+        for (size_t j = 0; j < constraints_number; ++j)
+        {
+            const Constraint& c = node.getConstraints()[j];
+            if (c.id < (*keyframes_)[keyframes_->size() - window_size].getId())
+                continue;
 
-        for (int i = 0; i < window_size; ++i) {
-            KeyFrame& node = (*keyframes_)[keyframes_->size() - window_size + i];
-            size_t constraints_number = node.getConstraints().size();
+            auto it = std::find_if(keyframes_->begin(), keyframes_->end(),
+                      [&](const KeyFrame& kf){ return kf.getId()==c.id; });
+            KeyFrame& node_related = *it;
 
-            int window_position_node;
-            if (window_size < max_window_size_) {
-                window_position_node = node.getId() - 1;
-            } else {
-                window_position_node = node.getId() - (keyframes_->size() - window_size) - 1;
+            int window_position_related =
+                (window_size < max_window_size_)
+                    ? node_related.getId()-1
+                    : node_related.getId()
+                      - (keyframes_->size()-window_size) - 1;
+
+            Eigen::Quaterniond q_rel = rpyToQuat(node_related.get_roll(),
+                                                 node_related.get_pitch(),
+                                                 node_related.get_yaw());
+            params_(window_position_related,0)=q_rel.w();
+            params_(window_position_related,1)=q_rel.x();
+            params_(window_position_related,2)=q_rel.y();
+            params_(window_position_related,3)=q_rel.z();
+            params_(window_position_related,4)=node_related.get_position()[0];
+            params_(window_position_related,5)=node_related.get_position()[1];
+            params_(window_position_related,6)=node_related.get_position()[2];
+            params_(window_position_related,7)=1.0;
+
+            if (quat_done.insert(window_position_related).second) {
+               
+                graph_.AddParameterBlock(&params_(window_position_related,0),4);
+                graph_.SetManifold(&params_(window_position_related,0),
+                                   new ceres::QuaternionManifold());
+            }
+            if (pos_done.insert(window_position_related).second) {
+               
+                graph_.AddParameterBlock(&params_(window_position_related,4),3);
             }
 
-            // Set initial parameter values for the node
-            params_(window_position_node, 0) = node.get_roll();
-            params_(window_position_node, 1) = node.get_pitch();
-            params_(window_position_node, 2) = node.get_yaw();
-            params_(window_position_node, 3) = node.get_position()[0];
-            params_(window_position_node, 4) = node.get_position()[1];
-            params_(window_position_node, 5) = node.get_position()[2];
-            params_(window_position_node, 6) = 1.0; // Flag to indicate valid parameters
+            // ORI
+            ceres::LossFunction* loss_function_ori = new ceres::TukeyLoss(1.0);
+            ceres::CostFunction* cf_ori =
+                CostFunctionOri::Create(c.q, c.w);
+            graph_.AddResidualBlock(cf_ori, loss_function_ori,
+                &params_(window_position_related,0),   // q_a (4)
+                &params_(window_position_node,   0));  // q_b (4)
 
-            // Add IMU constraint
-            ceres::CostFunction* cost_function_imu = CostFunction_Imu::Create(node.get_roll_imu(), node.get_pitch_imu(), 1.0);
-            graph_.AddResidualBlock(cost_function_imu, nullptr,
-                &params_(window_position_node, 0), &params_(window_position_node, 1));
-
-            // Add odometry constraint if not the first node
-            if (window_position_node > 0) {
-                KeyFrame& node_prev = (*keyframes_)[keyframes_->size() - window_size + i - 1];
-                int window_position_related = window_position_node - 1;
-
-                // Set initial parameter values for the related node
-                params_(window_position_related, 0) = node_prev.get_roll();
-                params_(window_position_related, 1) = node_prev.get_pitch();
-                params_(window_position_related, 2) = node_prev.get_yaw();
-                params_(window_position_related, 3) = node_prev.get_position()[0];
-                params_(window_position_related, 4) = node_prev.get_position()[1];
-                params_(window_position_related, 5) = node_prev.get_position()[2];
-                params_(window_position_related, 6) = 1.0;
-
-                // Add odometry constraint
-                ceres::CostFunction* cost_function_odom = CostFunction_Odom::Create(node.get_Odom_tf().block<3, 1>(0, 3), 1.0);
-                graph_.AddResidualBlock(cost_function_odom, nullptr,
-                    &params_(window_position_related, 0), &params_(window_position_related, 1), &params_(window_position_related, 2),
-                    &params_(window_position_related, 3), &params_(window_position_related, 4), &params_(window_position_related, 5),
-                    &params_(window_position_node, 3), &params_(window_position_node, 4), &params_(window_position_node, 5));
-
-                // Fix the parameters of the first node to anchor the graph
-                if (window_position_node == 1) {
-                    graph_.SetParameterBlockConstant(&params_(window_position_related, 0));
-                    graph_.SetParameterBlockConstant(&params_(window_position_related, 1));
-                    graph_.SetParameterBlockConstant(&params_(window_position_related, 2));
-                    graph_.SetParameterBlockConstant(&params_(window_position_related, 3));
-                    graph_.SetParameterBlockConstant(&params_(window_position_related, 4));
-                    graph_.SetParameterBlockConstant(&params_(window_position_related, 5));
-                }
-            }
-
-            // Add constraints from GICP (loop closures)
-            for (size_t j = 0; j < constraints_number; ++j) {
-                Constraint constraint = node.getConstraints()[j];
-                int constraint_id = constraint.id;
-
-                if (constraint_id >= (*keyframes_)[keyframes_->size() - window_size].getId()) {
-                    // Find the related node
-                    auto it = std::find_if(keyframes_->begin(), keyframes_->end(),
-                        [constraint_id](const KeyFrame& kf) { return kf.getId() == constraint_id; });
-                    KeyFrame& node_related = *it;
-
-                    int window_position_related;
-                    if (window_size < max_window_size_) {
-                        window_position_related = node_related.getId() - 1;
-                    } else {
-                        window_position_related = node_related.getId() - (keyframes_->size() - window_size) - 1;
-                    }
-
-                    // Set initial parameter values for the related node
-                    params_(window_position_related, 0) = node_related.get_roll();
-                    params_(window_position_related, 1) = node_related.get_pitch();
-                    params_(window_position_related, 2) = node_related.get_yaw();
-                    params_(window_position_related, 3) = node_related.get_position()[0];
-                    params_(window_position_related, 4) = node_related.get_position()[1];
-                    params_(window_position_related, 5) = node_related.get_position()[2];
-                    params_(window_position_related, 6) = 1.0;
-
-                    // Add orientation constraint from GICP
-                    ceres::LossFunction* loss_function_ori = new ceres::TukeyLoss(1.0);
-                    ceres::CostFunction* cost_function_ori_gicp = CostFunction_Ori::Create(constraint.q, constraint.w);
-                    graph_.AddResidualBlock(cost_function_ori_gicp, loss_function_ori,
-                        &params_(window_position_related, 0), &params_(window_position_related, 1), &params_(window_position_related, 2),
-                        &params_(window_position_node, 0), &params_(window_position_node, 1), &params_(window_position_node, 2));
-
-                    // Add translation constraint from GICP
-                    ceres::LossFunction* loss_function_trans = new ceres::TukeyLoss(0.5);
-                    ceres::CostFunction* cost_function_trans_gicp = CostFunction_Trans::Create(constraint.t, constraint.w);
-                    graph_.AddResidualBlock(cost_function_trans_gicp, loss_function_trans,
-                        &params_(window_position_related, 3), &params_(window_position_related, 4), &params_(window_position_related, 5),
-                        &params_(window_position_node, 3), &params_(window_position_node, 4), &params_(window_position_node, 5),
-                        &params_(window_position_related, 0), &params_(window_position_related, 1), &params_(window_position_related, 2));
-                }
-            }
+            // TRANS
+            ceres::LossFunction* loss_function_trans = new ceres::TukeyLoss(1.0);
+            ceres::CostFunction* cf_tr =
+                CostFunctionTrans::Create(c.t, c.w);
+            graph_.AddResidualBlock(cf_tr, loss_function_trans,
+                &params_(window_position_related,4),   // t_a (3)
+                &params_(window_position_node,   4),   // t_b (3)
+                &params_(window_position_related,0));  // q_a (4)
         }
     }
+}
+
+
 
     // Optimize the graph using Ceres Solver
     void optimize_graph(int window_size) {
@@ -236,13 +285,23 @@ public:
     }
 
     // Update keyframe parameters after optimization
-    void update_params(int window_size) {
-        for (int i = 0; i < window_size; ++i) {
-            if (params_(i, 6) == 1.0) { // Check if parameters are valid
-                KeyFrame& node = (*keyframes_)[keyframes_->size() - window_size + i];
-                node.update_params(params_(i, 0), params_(i, 1), params_(i, 2),
-                                   params_(i, 3), params_(i, 4), params_(i, 5));
-            }
+    void update_params(int window_size)
+    {
+        for (int i = 0; i < window_size; ++i)
+        {
+            if (params_(i,7) != 1.0) continue;
+
+            KeyFrame& node =
+                (*keyframes_)[keyframes_->size() - window_size + i];
+
+            Eigen::Quaterniond q(params_(i,0), params_(i,1),
+                                params_(i,2), params_(i,3)); // w,x,y,z
+
+            Eigen::Vector3d p(params_(i,4),
+                            params_(i,5),
+                            params_(i,6));
+
+            node.update_params(q, p);
         }
     }
 
@@ -250,7 +309,10 @@ private:
     int max_window_size_;
     std::vector<KeyFrame>* keyframes_;
     ceres::Problem graph_;
-    Eigen::MatrixXd params_;
+    Eigen::Matrix<double,
+              Eigen::Dynamic,
+              Eigen::Dynamic,
+              Eigen::RowMajor> params_;
 
     pcl::PointCloud<pcl::PointXYZI>::Ptr icp_cloud_ = pcl::make_shared<pcl::PointCloud<pcl::PointXYZI>>();
 };
