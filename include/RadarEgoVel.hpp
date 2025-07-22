@@ -141,16 +141,31 @@ namespace rio {
       const double r = Eigen::Vector3d(target.x, target.y, target.z).norm();
 
       double azimuth = std::atan2(target.y, target.x);
-      double elevation = std::atan2(std::sqrt(target.x * target.x + target.y * target.y), target.z) - M_PI_2;
+      //double elevation = std::atan2(std::sqrt(target.x * target.x + target.y * target.y), target.z) - M_PI_2;
+      double elevation = std::atan2(target.z, std::sqrt(target.x * target.x + target.y * target.y));
+
+      // RCLCPP_INFO(rclcpp::get_logger("RadarEgoVel"),
+      // "r=%.2f, az=%.2f deg, el=%.2f deg, rcs=%.1f",
+      // r, azimuth * 180.0 / M_PI, elevation * 180.0 / M_PI, target.intensity);
+
+      bool azimuth_ok = false;
+      bool elevation_ok = false;
+      if(is_ground){
+          azimuth_ok = std::fabs(azimuth) < angles::from_degrees(config_.azimuth_thresh_deg);
+          elevation_ok = std::fabs(elevation) < angles::from_degrees(config_.elevation_thresh_deg);
+      }
+      else{
+          azimuth_ok = std::fabs(azimuth) > angles::from_degrees(config_.azimuth_thresh_deg);
+          elevation_ok = std::fabs(elevation) < angles::from_degrees(config_.elevation_thresh_deg);
+      }
 
       // Apply thresholds and filters
       if (
         r > config_.min_dist &&
         r < config_.max_dist &&
         target.intensity > config_.min_db &&
-        std::fabs(azimuth) < angles::from_degrees(config_.azimuth_thresh_deg) &&
-        std::fabs(elevation) < angles::from_degrees(config_.elevation_thresh_deg)
-      ) {
+        azimuth_ok && elevation_ok) 
+      {
         Vector11 v_pt;
         v_pt << target.x, target.y, target.z,
                 target.intensity,

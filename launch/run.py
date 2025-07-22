@@ -88,6 +88,6 @@ def generate_launch_description():
     # )
 
     nodes_to_execute = [uav_radar_pcl_processor, agv_radar_pcl_processor]
-    # nodes_to_execute = [uav_radar_pcl_processor, agv_radar_pcl_processor, agv_optimizer, uav_optimizer]
+    #nodes_to_execute = [uav_radar_pcl_processor, agv_radar_pcl_processor, agv_optimizer, uav_optimizer]
 
     return LaunchDescription(nodes_to_execute)

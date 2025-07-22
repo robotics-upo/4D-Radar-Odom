@@ -5,7 +5,7 @@ uav_radar_pcl_processor:
     holonomic_vehicle: true            # Holonomic ground Vehicle (true/false)
     ground_vehicle: false # this is used to apply the motion constraints in holonomic case
     imu_to_base_link: [0.0, 0.0, 0.0, 0.0, 0.0, 0.0] # x y z r p y 
-    radar_to_base_link: [-0.385, -0.02, -0.225, 0.0, 2.417, 3.14] 
+    radar_to_base_link: [-0.385, -0.02, -0.225, 0.0, 0.725, 3.142] # [-0.385 -0.02 -0.225 0.0 2.417 3.1416]
 
     #Channel number of intensity and doppler channel
     intensity_channel: 2
@@ -21,11 +21,11 @@ uav_radar_pcl_processor:
     #Ego velocity estimator thresholds/params
     min_dist: 0.5
     max_dist: 400.0
-    min_db: 5.0
-    elevation_thresh_deg: 50.00
-    azimuth_thresh_deg: 56.5
+    min_db: -15.0 #RCS
+    elevation_thresh_deg: 60.00
+    azimuth_thresh_deg: 120.0 #minimum, up to 180 because the radar points backward
     doppler_velocity_correction_factor: 1.0
-    thresh_zero_velocity: 0.05
+    thresh_zero_velocity: 0.01
     allowed_outlier_percentage: 0.30
     sigma_zero_velocity_x: 1.0e-03
     sigma_zero_velocity_y: 3.2e-03
@@ -37,10 +37,10 @@ uav_radar_pcl_processor:
     max_sigma_y: 0.2
     max_sigma_z: 0.2
     max_r_cond: 0.2
-    outlier_prob: 0.05
-    success_prob: 0.995
-    N_ransac_points: 5.0
-    inlier_thresh: 0.5
+    outlier_prob: 0.25
+    success_prob: 0.95
+    N_ransac_points: 3.0
+    inlier_thresh: 1.0
     
 uav_optimizer:
   ros__parameters:

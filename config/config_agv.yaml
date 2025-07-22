@@ -21,9 +21,9 @@ agv_radar_pcl_processor:
     #Ego velocity estimator thresholds/params
     min_dist: 0.5
     max_dist: 400.0
-    min_db: 5.0
-    elevation_thresh_deg: 50.00
-    azimuth_thresh_deg: 56.5
+    min_db: -15.0 #RCS
+    elevation_thresh_deg: 15.0
+    azimuth_thresh_deg: 55.0
     doppler_velocity_correction_factor: 1.0
     thresh_zero_velocity: 0.05
     allowed_outlier_percentage: 0.30

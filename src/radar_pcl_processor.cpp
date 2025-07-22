@@ -262,27 +262,29 @@ private:
 
     // IMU callback for processing orientation and updating quaternions (change if needed)
     void imuCallback(const sensor_msgs::msg::Imu::SharedPtr imu_msg) {
-        // Convert IMU orientation to Eigen quaternion
+        // // Convert IMU orientation to Eigen quaternion
         Eigen::Quaterniond q_ahrs(
             imu_msg->orientation.w,
             imu_msg->orientation.x,
             imu_msg->orientation.y,
             imu_msg->orientation.z);
 
-        // Apply rotation adjustments
-        Eigen::Quaterniond q_r =
-            Eigen::AngleAxisd(M_PI, Eigen::Vector3d::UnitZ()) *
-            Eigen::AngleAxisd(M_PI, Eigen::Vector3d::UnitY()) *
-            Eigen::AngleAxisd(0.0, Eigen::Vector3d::UnitX());
-        Eigen::Quaterniond q_rr =
-            Eigen::AngleAxisd(0.0, Eigen::Vector3d::UnitZ()) *
-            Eigen::AngleAxisd(0.0, Eigen::Vector3d::UnitY()) *
-            Eigen::AngleAxisd(M_PI, Eigen::Vector3d::UnitX());
+        // // Apply rotation adjustments
+        // Eigen::Quaterniond q_r =
+        //     Eigen::AngleAxisd(M_PI, Eigen::Vector3d::UnitZ()) *
+        //     Eigen::AngleAxisd(M_PI, Eigen::Vector3d::UnitY()) *
+        //     Eigen::AngleAxisd(0.0, Eigen::Vector3d::UnitX());
+        // Eigen::Quaterniond q_rr =
+        //     Eigen::AngleAxisd(0.0, Eigen::Vector3d::UnitZ()) *
+        //     Eigen::AngleAxisd(0.0, Eigen::Vector3d::UnitY()) *
+        //     Eigen::AngleAxisd(M_PI, Eigen::Vector3d::UnitX());
 
-        Eigen::Quaterniond q_out = q_r * q_ahrs * q_rr;
+        // Eigen::Quaterniond q_out = q_r * q_ahrs * q_rr;
+        Eigen::Quaterniond q_out = q_ahrs;
 
         // Update the current orientation quaternion
         q_current_ = tf2::Quaternion(q_out.x(), q_out.y(), q_out.z(), q_out.w());
+
     }
 
     // Radar point cloud callback for filtering and processing radar data
@@ -400,6 +402,8 @@ private:
         filtered_cloud_msg.header.stamp = pc2_raw_msg.header.stamp;
         filtered_cloud_msg.header.frame_id = "base_link";
         radar_filtered_publisher_->publish(filtered_cloud_msg);
+
+        RCLCPP_WARN(this->get_logger(), "Filtered cloud has %d points", filtered_cloud->points.size());
 
         // Update previous orientation
         q_previous_ = q_current_;
