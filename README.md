@@ -182,7 +182,8 @@ These transformations ensure that the data from each sensor is correctly aligned
   year={2025},
   doi={10.1007/s10846-025-02301-9},
   url={https://doi.org/10.1007/s10846-025-02301-9}
-}  
+}
+ ```
 
 ## Acknowledgements
 
