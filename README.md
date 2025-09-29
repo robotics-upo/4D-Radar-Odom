@@ -173,16 +173,19 @@ These transformations ensure that the data from each sensor is correctly aligned
 ## Citation
 
 ```bibtex
-@article{cotoelena2025loosely,
+@article{srl2025loosely,
   title={Loosely coupled 4D-Radar-Inertial Odometry for Ground Robots},
-  author={Coto-Elena, L. and Caballero, F. and Merino, L.},
+  author={Coto-Elena Lucía, Caballero Fernando and Merino Luis},
   journal={Journal of Intelligent \& Robotic Systems},
   volume={111},
+  number={4},
   pages={107},
   year={2025},
   doi={10.1007/s10846-025-02301-9},
-  url={https://doi.org/10.1007/s10846-025-02301-9}
+  url={https://doi.org/10.1007/s10846-025-02301-9},
+  note={Published 23 September 2025}
 }
+
  ```
 
 ## Acknowledgements
