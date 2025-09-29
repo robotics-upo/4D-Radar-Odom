@@ -174,8 +174,7 @@ These transformations ensure that the data from each sensor is correctly aligned
 
 ## Acknowledgements
 
-This work was supported by the grant INSERTION PID2021-127648OB-C31, funded by MCIN/AEI/ 10.13039/501100011033 and “European Union NextGenera-
-tionEU/PRTR”.
+This work was partially supported by the grants INSERTION (PID2021-127648OB-C31) and NORDIC (TED2021-132476B-I00), both funded by the “Agencia Estatal de Investigaci´on – Ministerio de Ciencia, Innovaci´on y Universidades” and the “European Union NextGenerationEU/PRTR”.
 <p align="">
   <img src="figures/logo_mciu.png" alt="System Structure" />
 </p>
