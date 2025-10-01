@@ -157,7 +157,7 @@ private:
                (imu_time.sec == cloud_time.sec && imu_time.nanosec < cloud_time.nanosec);
     }
 
-    // Process odometry calculations
+    // Process odometry 
     void processOdometry(
         const geometry_msgs::msg::TwistWithCovarianceStamped::SharedPtr& twist_msg,
         const sensor_msgs::msg::Imu::SharedPtr& imu_msg,
